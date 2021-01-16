@@ -281,7 +281,8 @@ private:
 
   /// Return true if this is a forward reference.
   bool isForwardRefPlaceholder(Value value) {
-    return forwardRefPlaceholders.count(value);
+    assert(forwardRefPlaceholders.size() > 0);
+    return forwardRefPlaceholders.front().count(value);
   }
 
   /// This struct represents an isolated SSA name scope. This scope may contain
@@ -322,7 +323,7 @@ private:
 
   /// These are all of the placeholders we've made along with the location of
   /// their first reference, to allow checking for use of undefined values.
-  DenseMap<Value, SMLoc> forwardRefPlaceholders;
+  SmallVector<DenseMap<Value, SMLoc>, 2> forwardRefPlaceholders;
 
   /// A set of operations whose locations reference aliases that have yet to
   /// be resolved.
@@ -337,11 +338,13 @@ private:
 } // end anonymous namespace
 
 OperationParser::~OperationParser() {
-  for (auto &fwd : forwardRefPlaceholders) {
-    // Drop all uses of undefined forward declared reference and destroy
-    // defining operation.
-    fwd.first.dropAllUses();
-    fwd.first.getDefiningOp()->destroy();
+  for (auto &scope : forwardRefPlaceholders) {
+    for (auto &fwd : scope) {
+      // Drop all uses of undefined forward declared reference and destroy
+      // defining operation.
+      fwd.first.dropAllUses();
+      fwd.first.getDefiningOp()->destroy();
+    }
   }
 }
 
@@ -353,8 +356,11 @@ ParseResult OperationParser::finalize() {
   if (!forwardRefPlaceholders.empty()) {
     SmallVector<const char *, 4> errors;
     // Iteration over the map isn't deterministic, so sort by source location.
-    for (auto entry : forwardRefPlaceholders)
-      errors.push_back(entry.second.getPointer());
+    for (auto scope : forwardRefPlaceholders) {
+      for (auto entry : scope) {
+        errors.push_back(entry.second.getPointer());
+      }
+    }
     llvm::array_pod_sort(errors.begin(), errors.end());
 
     for (auto entry : errors) {
@@ -389,6 +395,7 @@ ParseResult OperationParser::finalize() {
 //===----------------------------------------------------------------------===//
 
 void OperationParser::pushSSANameScope(bool isIsolated) {
+  forwardRefPlaceholders.push_back(DenseMap<Value, SMLoc>());
   blocksByName.push_back(DenseMap<StringRef, std::pair<Block *, SMLoc>>());
   forwardRef.push_back(DenseMap<Block *, SMLoc>());
 
@@ -419,6 +426,29 @@ ParseResult OperationParser::popSSANameScope() {
     return failure();
   }
 
+  auto forwardRefPlaceholdersInCurrentScope =
+      forwardRefPlaceholders.pop_back_val();
+
+
+  /*
+  if (!forwardRefPlaceholdersInCurrentScope.empty()) {
+    SmallVector<const char *, 4> errors;
+    // Iteration over the map isn't deterministic, so sort by source location.
+    for (auto entry : forwardRefPlaceholdersInCurrentScope) {
+      errors.push_back(entry.second.getPointer());
+      // Add this block to the top-level region to allow for automatic cleanup.
+      // topLevelOp->getRegion(0).push_back(entry.first);
+      // TODO: how does one perform cleanup?
+    }
+    std::sort(errors.begin(), errors.end());
+    for (auto entry : errors) {
+      auto loc = SMLoc::getFromPointer(entry);
+      emitError(loc, "reference to undefined value");
+    }
+    return failure();
+  }
+  */
+  // Verify that all referenced blocks were defined.
   // Pop the next nested namescope. If there is only one internal namescope,
   // just pop the isolated scope.
   auto &currentNameScope = isolatedNameScopes.back();
@@ -462,7 +492,8 @@ ParseResult OperationParser::addDefinition(SSAUseInfo useInfo, Value value) {
     // from our set of forward references we track.
     existing.replaceAllUsesWith(value);
     existing.getDefiningOp()->destroy();
-    forwardRefPlaceholders.erase(existing);
+    // Probably what I need to fix.
+    forwardRefPlaceholders.front().erase(existing);
   }
 
   /// Record this definition for the current scope.
@@ -627,7 +658,8 @@ Value OperationParser::createForwardRefPlaceholder(SMLoc loc, Type type) {
   auto *op = Operation::create(
       getEncodedSourceLocation(loc), name, type, /*operands=*/{},
       /*attributes=*/llvm::None, /*successors=*/{}, /*numRegions=*/0);
-  forwardRefPlaceholders[op->getResult(0)] = loc;
+  assert(forwardRefPlaceholders.size() > 0);
+  forwardRefPlaceholders.back()[op->getResult(0)] = loc;
   return op->getResult(0);
 }
 
@@ -1921,12 +1953,12 @@ ParseResult OperationParser::parseOptionalBlockArgList(
   unsigned nextArgument = 0;
 
   return parseCommaSeparatedList([&]() -> ParseResult {
+    // vvv why is it parsing a def OR use?
     return parseSSADefOrUseAndType(
         [&](SSAUseInfo useInfo, Type type) -> ParseResult {
           // If this block did not have existing arguments, define a new one.
           if (!definingExistingArgs)
             return addDefinition(useInfo, owner->addArgument(type));
-
           // Otherwise, ensure that this argument has already been created.
           if (nextArgument >= owner->getNumArguments())
             return emitError("too many arguments specified in argument list");
