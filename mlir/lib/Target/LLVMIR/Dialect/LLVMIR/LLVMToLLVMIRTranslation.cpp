@@ -277,15 +277,28 @@ convertOperationImpl(Operation &opInst, llvm::IRBuilderBase &builder,
   auto convertCall = [&](Operation &op) -> llvm::Value * {
     auto operands = moduleTranslation.lookupValues(op.getOperands());
     ArrayRef<llvm::Value *> operandsRef(operands);
-    if (auto attr = op.getAttrOfType<FlatSymbolRefAttr>("callee"))
-      return builder.CreateCall(
-          moduleTranslation.lookupFunction(attr.getValue()), operandsRef);
+    if (auto attr = op.getAttrOfType<FlatSymbolRefAttr>("callee")) {
+        // assert(false && "call");
+        llvm::CallInst *call =  builder.CreateCall(
+                moduleTranslation.lookupFunction(attr.getValue()), operandsRef);
+        StringAttr musttail = op.getAttrOfType<StringAttr>("musttail");
+        if (musttail && musttail.getValue() == "true") {
+            call->setTailCallKind(llvm::CallInst::TailCallKind::TCK_MustTail);
+        }
+    }
     auto *calleePtrType =
         cast<llvm::PointerType>(operandsRef.front()->getType());
     auto *calleeType =
         cast<llvm::FunctionType>(calleePtrType->getElementType());
-    return builder.CreateCall(calleeType, operandsRef.front(),
+    // assert(false && "call");
+    llvm::CallInst *call = builder.CreateCall(calleeType, operandsRef.front(),
                               operandsRef.drop_front());
+    // assert(false && "call");
+    StringAttr musttail = op.getAttrOfType<StringAttr>("musttail");
+    if (musttail && musttail.getValue() == "true") {
+        call->setTailCallKind(llvm::CallInst::TailCallKind::TCK_MustTail);
+    }
+    return call;
   };
 
   // Emit calls.  If the called function has a result, remap the corresponding
@@ -329,8 +342,16 @@ convertOperationImpl(Operation &opInst, llvm::IRBuilderBase &builder,
                       moduleTranslation.convertType(ft)),
                   inlineAsmOp.asm_string(), inlineAsmOp.constraints(),
                   inlineAsmOp.has_side_effects(), inlineAsmOp.is_align_stack());
-    llvm::Value *result = builder.CreateCall(
+    // assert(false && "call");
+    llvm::CallInst *result = builder.CreateCall(
         inlineAsmInst, moduleTranslation.lookupValues(inlineAsmOp.operands()));
+
+    // StringAttr musttail =
+    //     op.getAttrOfType<StringAttr>("musttail");
+    // if (musttail && musttail.getValue() == "true") {
+    //     result->setTailCallKind(llvm::CallInst::TailCallKind::TCK_MustTail);
+    // }
+
     if (opInst.getNumResults() != 0)
       moduleTranslation.mapValue(opInst.getResult(0), result);
     return success();
