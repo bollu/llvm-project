@@ -3222,6 +3222,10 @@ struct CondBranchOpLowering
     : public OneToOneLLVMTerminatorLowering<CondBranchOp, LLVM::CondBrOp> {
   using Super::Super;
 };
+struct SwitchOpLowering
+    : public OneToOneLLVMTerminatorLowering<SwitchOp, LLVM::SwitchOp> {
+  using Super::Super;
+};
 
 // The Splat operation is lowered to an insertelement + a shufflevector
 // operation. Splat to only 1-d vector result types are lowered.
@@ -3915,6 +3919,7 @@ void mlir::populateStdToLLVMNonMemoryConversionPatterns(
       SqrtOpLowering,
       SubFOpLowering,
       SubIOpLowering,
+      SwitchOpLowering,
       TruncateIOpLowering,
       UIToFPLowering,
       UnsignedDivIOpLowering,
