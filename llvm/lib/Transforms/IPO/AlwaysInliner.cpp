@@ -22,6 +22,7 @@
 #include "llvm/IR/DataLayout.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/Operator.h"
 #include "llvm/IR/Type.h"
 #include "llvm/InitializePasses.h"
 #include "llvm/Transforms/IPO.h"
@@ -51,19 +52,57 @@ PreservedAnalyses AlwaysInlinerPass::run(Module &M,
     // before coro-split pass,
     // coro-early pass can not handle this quiet well.
     // So we won't inline the coroutine function if it have not been unsplited
-    if (F.isPresplitCoroutine())
+    if (F.isPresplitCoroutine()) {
+      assert(false && "is presplit coro");
       continue;
+    }
 
     if (!F.isDeclaration() && F.hasFnAttribute(Attribute::AlwaysInline) &&
         isInlineViable(F).isSuccess()) {
+      llvm::errs() << "always-inline |" << F.getName() << "| " << __LINE__
+                   << "\n";
       Calls.clear();
 
-      for (User *U : F.users())
-        if (auto *CB = dyn_cast<CallBase>(U))
-          if (CB->getCalledFunction() == &F)
+      for (User *U : F.users()) {
+        llvm::errs() << "found user: ";
+        U->dump();
+        llvm::errs() << "\tfor function: |" << F.getName() << "|\n";
+        llvm::errs() << "\t user is bitcast?  " << isa<BitCastInst>(U) << "\n";
+        llvm::errs() << "\t user is bitcastop?  " << isa<BitCastOperator>(U)
+                     << "\n";
+        llvm::errs() << "\tuser->name: " << U->getName() << "\n";
+        llvm::errs() << "\tuser->name: " << U->getNameOrAsOperand() << "\n";
+        if (BitCastOperator *Cast = dyn_cast<BitCastOperator>(U)) {
+          if (auto *CB = dyn_cast<CallBase>(Cast->getOperand(0))) {
+            if (CB->getCalledFunction() == &F) {
+              CB->dump();
+              Calls.insert(CB);
+            }
+          }
+        }
+        if (CastInst *Cast = dyn_cast<CastInst>(U)) {
+          if (auto *CB = dyn_cast<CallBase>(Cast->getOperand(0))) {
+            if (CB->getCalledFunction() == &F) {
+              CB->dump();
+              Calls.insert(CB);
+            }
+          }
+        }
+        if (auto *CB = dyn_cast<CallBase>(U)) {
+          if (CB->getCalledFunction() == &F) {
+            llvm::errs() << "always-inline call |";
+            CB->dump();
+            llvm::errs() << " "
+                         << "| " << __LINE__ << "\n";
             Calls.insert(CB);
+          }
+        }
+      }
 
       for (CallBase *CB : Calls) {
+        llvm::errs() << "always-inline call |";
+        CB->dump();
+        llvm::errs() << "| " << __LINE__ << "\n";
         Function *Caller = CB->getCaller();
         OptimizationRemarkEmitter ORE(Caller);
         auto OIC = shouldInline(
@@ -106,8 +145,8 @@ PreservedAnalyses AlwaysInlinerPass::run(Module &M,
   });
 
   // Delete the non-comdat ones from the module and also from our vector.
-  auto NonComdatBegin = partition(
-      InlinedFunctions, [&](Function *F) { return F->hasComdat(); });
+  auto NonComdatBegin =
+      partition(InlinedFunctions, [&](Function *F) { return F->hasComdat(); });
   for (Function *F : make_range(NonComdatBegin, InlinedFunctions.end()))
     M.getFunctionList().erase(F);
   InlinedFunctions.erase(NonComdatBegin, InlinedFunctions.end());
@@ -154,7 +193,7 @@ public:
     return removeDeadFunctions(CG, /*AlwaysInlineOnly=*/true);
   }
 };
-}
+} // namespace
 
 char AlwaysInlinerLegacyPass::ID = 0;
 INITIALIZE_PASS_BEGIN(AlwaysInlinerLegacyPass, "always-inline",
