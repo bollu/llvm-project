@@ -285,6 +285,7 @@ convertOperationImpl(Operation &opInst, llvm::IRBuilderBase &builder,
         if (musttail && musttail.getValue() == "true") {
             call->setTailCallKind(llvm::CallInst::TailCallKind::TCK_MustTail);
         }
+        return call;
     }
     auto *calleePtrType =
         cast<llvm::PointerType>(operandsRef.front()->getType());
