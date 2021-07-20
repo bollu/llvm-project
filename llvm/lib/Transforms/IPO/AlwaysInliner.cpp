@@ -73,31 +73,43 @@ PreservedAnalyses AlwaysInlinerPass::run(Module &M,
         llvm::errs() << "\tuser->name: " << U->getName() << "\n";
         llvm::errs() << "\tuser->name: " << U->getNameOrAsOperand() << "\n";
         if (BitCastOperator *Cast = dyn_cast<BitCastOperator>(U)) {
+            // bitcast <op0:fn> to <newtype>
+            // find users of bitcast and look for a call.
+            llvm::errs() << "Cast->numUses: " << Cast->getNumUses() << "\n";
+            // assert(Cast->getNumUses() == 1 && "bitcast OPERATOR cannot have more than 1 use");
+            for (auto FnBitCastUser : Cast->users()) {
+                llvm::errs() << "\tuser of fn is bitcast; bitcast->user: " ; FnBitCastUser->dump(); llvm::errs() << "\n";
+                // vv not always true, can be another cast or some shit. OK, w/e. We only care
+                // about the calls.
+                // assert(llvm::isa<CallBase>(FnBitCastUser));
+                if (auto *CB = dyn_cast<CallBase>(FnBitCastUser)) {
+                    Calls.insert(CB);
+                    llvm::errs() << "\t\t ### Inserted.\n";
+                }
+            }
+
+        } else if (CastInst *Cast = dyn_cast<CastInst>(U)) {
           if (auto *CB = dyn_cast<CallBase>(Cast->getOperand(0))) {
             if (CB->getCalledFunction() == &F) {
+              llvm::errs() << "\t\t ### Inserted.\n";
               CB->dump();
               Calls.insert(CB);
             }
           }
         }
-        if (CastInst *Cast = dyn_cast<CastInst>(U)) {
-          if (auto *CB = dyn_cast<CallBase>(Cast->getOperand(0))) {
-            if (CB->getCalledFunction() == &F) {
-              CB->dump();
-              Calls.insert(CB);
-            }
-          }
-        }
-        if (auto *CB = dyn_cast<CallBase>(U)) {
+        else if (auto *CB = dyn_cast<CallBase>(U)) {
           if (CB->getCalledFunction() == &F) {
+            llvm::errs() << "\t\t ### Inserted.\n";
             llvm::errs() << "always-inline call |";
             CB->dump();
             llvm::errs() << " "
                          << "| " << __LINE__ << "\n";
             Calls.insert(CB);
           }
+        } else {
+            llvm::errs() << "\tunknown call site!"; assert(false);
         }
-      }
+      } // end loop over users.
 
       for (CallBase *CB : Calls) {
         llvm::errs() << "always-inline call |";
