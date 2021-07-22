@@ -82,10 +82,10 @@ PreservedAnalyses AlwaysInlinerPass::run(Module &M,
                 // vv not always true, can be another cast or some shit. OK, w/e. We only care
                 // about the calls.
                 // assert(llvm::isa<CallBase>(FnBitCastUser));
-                if (auto *CB = dyn_cast<CallBase>(FnBitCastUser)) {
-                    Calls.insert(CB);
-                    llvm::errs() << "\t\t ### Inserted.\n";
-                }
+                // if (auto *CB = dyn_cast<CallBase>(FnBitCastUser)) {
+                //     Calls.insert(CB);
+                //     llvm::errs() << "\t\t ### Inserted.\n";
+                // }
             }
 
         } else if (CastInst *Cast = dyn_cast<CastInst>(U)) {
