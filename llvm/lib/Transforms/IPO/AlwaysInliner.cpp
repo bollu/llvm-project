@@ -107,7 +107,7 @@ PreservedAnalyses AlwaysInlinerPass::run(Module &M,
             Calls.insert(CB);
           }
         } else {
-            llvm::errs() << "\tunknown call site!"; assert(false);
+            llvm::errs() << "\tunknown call site!";
         }
       } // end loop over users.
 
