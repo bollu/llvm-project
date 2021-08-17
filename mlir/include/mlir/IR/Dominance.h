@@ -11,9 +11,39 @@
 
 #include "mlir/IR/RegionGraphTraits.h"
 #include "llvm/Support/GenericDomTree.h"
+#include "mlir/Support/LLVM.h"
+#include "llvm/ADT/GraphTraits.h"
 
 extern template class llvm::DominatorTreeBase<mlir::Block, false>;
 extern template class llvm::DominatorTreeBase<mlir::Block, true>;
+
+struct UnifiedDTNode {
+  mlir::Block *b;
+
+  using SuccessorRange = llvm::SmallVector<mlir::Block *, 4>; 
+  mlir::SuccessorRange successors;
+  
+  using succ_iterator = SuccessorRange::iterator;
+  succ_iterator succ_begin() { return getSuccessors().begin(); }
+  succ_iterator succ_end() { return getSuccessors().end(); }
+  SuccessorRange getSuccessors() { return SuccessorRange(this->successors); }
+};
+
+
+// namespace llvm {
+// template <> struct GraphTraits<UnifiedDTNode *> {
+//   using ChildIteratorType = UnifiedDTNode::succ_iterator;
+//   using Node = UnifiedDTNode;
+//   using NodeRef = Node *;
+
+//   static NodeRef getEntryNode(NodeRef bb) { return bb; }
+
+//   static ChildIteratorType child_begin(NodeRef node) {
+//     return node->succ_begin();
+//   }
+//   static ChildIteratorType child_end(NodeRef node) { return node->succ_end(); }
+// };
+
 
 namespace mlir {
 using DominanceInfoNode = llvm::DomTreeNodeBase<Block>;
@@ -65,6 +95,11 @@ protected:
 
   /// A mapping of regions to their base dominator tree.
   DenseMap<Region *, std::unique_ptr<base>> dominanceInfos;
+
+  // a mapping from parent regions to child regions which they dominate
+  DenseMap<Region *, SmallVector<Region *, 4>> domParent2Children;
+  DenseMap<Region *, Region *> domChild2Parent;
+
 };
 } // end namespace detail
 

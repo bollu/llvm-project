@@ -36,6 +36,11 @@ static bool hasSSADominance(Operation *op, unsigned index) {
 // DominanceInfoBase
 //===----------------------------------------------------------------------===//
 
+bool isRunRegionOp(Operation *op) {
+  return false;
+}
+
+
 template <bool IsPostDom>
 void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
   dominanceInfos.clear();
@@ -75,6 +80,7 @@ void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
 /// otherwise.
 template <typename FuncT>
 Block *traverseAncestors(Block *block, const FuncT &func) {
+  assert(false && "unimplemented");
   // Invoke the user-defined traversal function in the beginning for the current
   // block.
   if (func(block))
@@ -101,6 +107,8 @@ Block *traverseAncestors(Block *block, const FuncT &func) {
 /// Tries to update the given block references to live in the same region by
 /// exploring the relationship of both blocks with respect to their regions.
 static bool tryGetBlocksInSameRegion(Block *&a, Block *&b) {
+  assert(false && "unimplemented");
+
   // If both block do not live in the same region, we will have to check their
   // parent operations.
   if (a->getParent() == b->getParent())
@@ -135,68 +143,95 @@ template <bool IsPostDom>
 Block *
 DominanceInfoBase<IsPostDom>::findNearestCommonDominator(Block *a,
                                                          Block *b) const {
-  // If either a or b are null, then conservatively return nullptr.
-  if (!a || !b)
-    return nullptr;
+  assert(false && "unimplemented");
 
-  // Try to find blocks that are in the same region.
-  if (!tryGetBlocksInSameRegion(a, b))
-    return nullptr;
+  // // If either a or b are null, then conservatively return nullptr.
+  // if (!a || !b)
+  //   return nullptr;
 
-  // Get and verify dominance information of the common parent region.
-  Region *parentRegion = a->getParent();
-  auto infoAIt = dominanceInfos.find(parentRegion);
-  if (infoAIt == dominanceInfos.end())
-    return nullptr;
+  // // Try to find blocks that are in the same region.
+  // if (!tryGetBlocksInSameRegion(a, b))
+  //   return nullptr;
 
-  // Since the blocks live in the same region, we can rely on already
-  // existing dominance functionality.
-  return infoAIt->second->findNearestCommonDominator(a, b);
+  // // Get and verify dominance information of the common parent region.
+  // Region *parentRegion = a->getParent();
+  // auto infoAIt = dominanceInfos.find(parentRegion);
+  // if (infoAIt == dominanceInfos.end())
+  //   return nullptr;
+
+  // // Since the blocks live in the same region, we can rely on already
+  // // existing dominance functionality.
+  // return infoAIt->second->findNearestCommonDominator(a, b);
 }
 
 template <bool IsPostDom>
 DominanceInfoNode *DominanceInfoBase<IsPostDom>::getNode(Block *a) {
-  Region *region = a->getParent();
-  assert(dominanceInfos.count(region) != 0);
-  return dominanceInfos[region]->getNode(a);
+  assert(false && "unimplemented");
+  // Region *region = a->getParent();
+  // assert(dominanceInfos.count(region) != 0);
+  // return dominanceInfos[region]->getNode(a);
 }
 
 /// Return true if the specified block A properly dominates block B.
 template <bool IsPostDom>
 bool DominanceInfoBase<IsPostDom>::properlyDominates(Block *a, Block *b) const {
-  // A block dominates itself but does not properly dominate itself.
-  if (a == b)
-    return false;
+  assert(false && "unimplemented");
 
   // If either a or b are null, then conservatively return false.
   if (!a || !b)
     return false;
 
-  // If both blocks are not in the same region, 'a' properly dominates 'b' if
-  // 'b' is defined in an operation region that (recursively) ends up being
-  // dominated by 'a'. Walk up the list of containers enclosing B.
-  Region *regionA = a->getParent();
-  if (regionA != b->getParent()) {
-    b = traverseAncestors(
-        b, [&](Block *block) { return block->getParent() == regionA; });
-
-    // If we could not find a valid block b then it is a not a dominator.
-    if (!b)
+  if (a->getParent() == b->getParent()) {
+    // A block dominates itself but does not properly dominate itself.
+    if (a == b) { return b; }  
+  } else {
+    // These blocks are in different regions.
+    // if a's region does not contain b's region, then a does not dominates b. 
+    if (!a->getParent()->isProperAncestor(b->getParent())) {
       return false;
+    }
 
-    // Check to see if the ancestor of 'b' is the same block as 'a'.
-    if (a == b)
-      return true;
+    // a's region is the parent of b's region.
+    // check if a ever calls `run` on `b`.
+    
   }
 
-  // Otherwise, use the standard dominance functionality.
+  // // A block dominates itself but does not properly dominate itself.
+  // if (a == b)
+  //   return false;
 
-  // If we don't have a dominance information for this region, assume that b is
-  // dominated by anything.
-  auto baseInfoIt = dominanceInfos.find(regionA);
-  if (baseInfoIt == dominanceInfos.end())
-    return true;
-  return baseInfoIt->second->properlyDominates(a, b);
+  // // If either a or b are null, then conservatively return false.
+  // if (!a || !b)
+  //   return false;
+
+  // // if both blocks are not in the same region, then 'a' properly dominates
+  // // 'b' if 'a' executes 'b'.
+
+  // // If both blocks are not in the same region, 'a' properly dominates 'b' if
+  // // 'b' is defined in an operation region that (recursively) ends up being
+  // // dominated by 'a'. Walk up the list of containers enclosing B.
+  // const Region *regionA = a->getParent();
+  // if (regionA != b->getParent()) {
+  //   b = traverseAncestors(
+  //       b, [&](Block *block) { return block->getParent() == regionA; });
+
+  //   // If we could not find a valid block b then it is a not a dominator.
+  //   if (!b)
+  //     return false;
+
+  //   // Check to see if the ancestor of 'b' is the same block as 'a'.
+  //   if (a == b)
+  //     return true;
+  // }
+
+  // // Otherwise, use the standard dominance functionality.
+
+  // // If we don't have a dominance information for this region, assume that b is
+  // // dominated by anything.
+  // auto baseInfoIt = dominanceInfos.find(regionA);
+  // if (baseInfoIt == dominanceInfos.end())
+  //   return true;
+  // return baseInfoIt->second->properlyDominates(a, b);
 }
 
 /// Return true if the specified block is reachable from the entry block of its
