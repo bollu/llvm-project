@@ -10,10 +10,10 @@
 #define MLIR_IR_DOMINANCE_H
 
 #include "mlir/IR/RegionGraphTraits.h"
-#include "llvm/Support/GenericDomTree.h"
 #include "mlir/IR/Value.h"
 #include "mlir/Support/LLVM.h"
 #include "llvm/ADT/GraphTraits.h"
+#include "llvm/Support/GenericDomTree.h"
 
 extern template class llvm::DominatorTreeBase<mlir::Block, false>;
 extern template class llvm::DominatorTreeBase<mlir::Block, true>;
@@ -21,14 +21,12 @@ extern template class llvm::DominatorTreeBase<mlir::Block, true>;
 struct DTNode; // forward declare
 
 struct DT {
-  DT(DTNode *entry) : entry(entry) {};
+  DT(DTNode *entry) : entry(entry){};
 
   DTNode *entry;
   using NodesT = llvm::SmallVector<DTNode *, 4>;
   NodesT Nodes;
-
 };
-
 
 // look at RegionGraphTraits.h
 
@@ -41,49 +39,43 @@ struct DTNode {
 
   DTNode::Kind kind;
 
-  using SuccessorRange = std::vector<DTNode *>; 
+  using SuccessorRange = std::vector<DTNode *>;
   SuccessorRange successors;
-  
+
   using succ_iterator = SuccessorRange::iterator;
   succ_iterator succ_begin() { return getSuccessors().begin(); }
   succ_iterator succ_end() { return getSuccessors().end(); }
   SuccessorRange &getSuccessors() { return this->successors; }
 
-  using PredecessorRange = std::vector<DTNode *>; 
+  using PredecessorRange = std::vector<DTNode *>;
   PredecessorRange predecessors;
-  
+
   using pred_iterator = PredecessorRange::iterator;
   pred_iterator pred_begin() { return getPredecessors().begin(); }
   pred_iterator pred_end() { return getPredecessors().end(); }
   PredecessorRange &getPredecessors() { return this->predecessors; }
 
+  void addSuccessor(DTNode *&next) { this->successors.push_back(next); }
 
-  void addSuccessor(DTNode *&next) {
-    this->successors.push_back(next);
-  }
-
-  static DTNode* newBlock(mlir::Block *b, DT *parent) {
+  static DTNode *newBlock(mlir::Block *b, DT *parent) {
     DTNode *node = new DTNode(parent);
     node->b = b;
     node->kind = Kind::DTBlock;
     return node;
-
   }
 
-  static DTNode* newExit(mlir::Region *r, DT *parent) {
+  static DTNode *newExit(mlir::Region *r, DT *parent) {
     DTNode *node = new DTNode(parent);
     node->r = r;
     node->kind = Kind::DTExit;
     return node;
-
   }
 
-  static DTNode* newOp(mlir::Operation *op, DT *parent) {
+  static DTNode *newOp(mlir::Operation *op, DT *parent) {
     DTNode *node = new DTNode(parent);
     node->op = op;
     node->kind = Kind::DTOp;
     return node;
-
   }
 
   DT *getParent() { return parent; }
@@ -91,7 +83,6 @@ struct DTNode {
   void printAsOperand(llvm::raw_ostream &os, bool printType = true) {
     assert(false && "unimplemented print for DTNode");
   }
-
 
   DTNode(const DTNode &other) = default;
   // explicit DTNode() = default;
@@ -103,12 +94,11 @@ private:
   mlir::Operation *op = nullptr;
 };
 
-
-
 namespace llvm {
-template <> struct GraphTraits<DTNode *> {
+template <>
+struct GraphTraits<DTNode *> {
   // using Node = ;
-  using NodeRef = DTNode*;
+  using NodeRef = DTNode *;
   static NodeRef getEntryNode(NodeRef bb) { return bb; }
 
   using ChildIteratorType = DTNode::succ_iterator;
@@ -116,28 +106,24 @@ template <> struct GraphTraits<DTNode *> {
     return node->succ_begin();
   }
   static ChildIteratorType child_end(NodeRef node) { return node->succ_end(); }
-
 };
-}
-
-
-
+} // namespace llvm
 
 namespace llvm {
-template <> struct GraphTraits<DT *> 
-  : public GraphTraits<DTNode *> {
+template <>
+struct GraphTraits<DT *> : public GraphTraits<DTNode *> {
   // refer to call graph
   static DTNode *getEntryNode(DT *dt) { return dt->entry; }
-  
+
   using nodes_iterator = DT::NodesT::iterator;
   static nodes_iterator nodes_begin(DT *base) { return base->Nodes.begin(); }
-  static nodes_iterator nodes_end(DT *base) { return  base->Nodes.end(); }
-
+  static nodes_iterator nodes_end(DT *base) { return base->Nodes.end(); }
 };
-}
+} // namespace llvm
 
 namespace llvm {
-template <> struct GraphTraits<Inverse<DTNode *>> {
+template <>
+struct GraphTraits<Inverse<DTNode *>> {
   using ChildIteratorType = DTNode::pred_iterator;
   using NodeRef = DTNode *;
   static NodeRef getEntryNode(Inverse<NodeRef> inverseGraph) {
@@ -150,35 +136,34 @@ template <> struct GraphTraits<Inverse<DTNode *>> {
     return node->pred_end();
   }
 };
-}
+}; // namespace llvm
 
 namespace llvm {
 template <>
-struct GraphTraits<Inverse<DT *>>
-    : public GraphTraits<Inverse<DTNode *>> {
-  using GraphType = Inverse<DT*>;
+struct GraphTraits<Inverse<DT *>> : public GraphTraits<Inverse<DTNode *>> {
+  using GraphType = Inverse<DT *>;
   using NodeRef = DTNode *;
 
-  static NodeRef getEntryNode(Inverse<DT*> dt) { return dt.Graph->entry; }
+  static NodeRef getEntryNode(Inverse<DT *> dt) { return dt.Graph->entry; }
 
   using nodes_iterator = DT::NodesT::iterator;
-  static nodes_iterator nodes_begin(Inverse<DT*> dt) {
-    return nodes_iterator(dt.Graph->Nodes.begin()); 
+  static nodes_iterator nodes_begin(Inverse<DT *> dt) {
+    return nodes_iterator(dt.Graph->Nodes.begin());
   }
-  static nodes_iterator nodes_end(Inverse<DT*> dt) {
-    return nodes_iterator(dt.Graph->Nodes.end()); 
+  static nodes_iterator nodes_end(Inverse<DT *> dt) {
+    return nodes_iterator(dt.Graph->Nodes.end());
   }
 };
 
-}
-
+} // namespace llvm
 
 namespace mlir {
 using DominanceInfoNode = llvm::DomTreeNodeBase<DTNode>;
 class Operation;
 
 namespace detail {
-template <bool IsPostDom> class DominanceInfoBase {
+template <bool IsPostDom>
+class DominanceInfoBase {
   using base = llvm::DominatorTreeBase<DTNode, IsPostDom>;
 
 public:
@@ -229,10 +214,9 @@ protected:
   DenseMap<Region *, Region *> domChild2Parent;
 
   DT *dt;
-  DenseMap<Block *, std::pair<DTNode*, DTNode*>> Block2EntryExit;
-  DenseMap<Operation *, DTNode*> Op2Node;
-  DenseMap<Region *, std::pair<DTNode*, DTNode *>> R2EntryExit;
-
+  DenseMap<Block *, std::pair<DTNode *, DTNode *>> Block2EntryExit;
+  DenseMap<Operation *, DTNode *> Op2Node;
+  DenseMap<Region *, std::pair<DTNode *, DTNode *>> R2EntryExit;
 };
 } // end namespace detail
 
@@ -332,7 +316,8 @@ namespace llvm {
 
 /// DominatorTree GraphTraits specialization so the DominatorTree can be
 /// iterated by generic graph iterators.
-template <> struct GraphTraits<mlir::DominanceInfoNode *> {
+template <>
+struct GraphTraits<mlir::DominanceInfoNode *> {
   using ChildIteratorType = mlir::DominanceInfoNode::const_iterator;
   using NodeRef = mlir::DominanceInfoNode *;
 
@@ -341,7 +326,8 @@ template <> struct GraphTraits<mlir::DominanceInfoNode *> {
   static inline ChildIteratorType child_end(NodeRef N) { return N->end(); }
 };
 
-template <> struct GraphTraits<const mlir::DominanceInfoNode *> {
+template <>
+struct GraphTraits<const mlir::DominanceInfoNode *> {
   using ChildIteratorType = mlir::DominanceInfoNode::const_iterator;
   using NodeRef = const mlir::DominanceInfoNode *;
 

@@ -12,18 +12,22 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/IR/Dominance.h"
+#include "mlir/Dialect/Rgn/RgnDialect.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Block.h"
-#include "mlir/IR/Operation.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/Operation.h"
+#include "mlir/IR/Region.h"
 #include "mlir/IR/RegionKindInterface.h"
+#include "mlir/IR/UseDefLists.h"
+#include "mlir/IR/Value.h"
+#include "mlir/Interfaces/ControlFlowInterfaces.h"
+#include "mlir/Support/LLVM.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/Support/GenericDomTreeConstruction.h"
 #include <algorithm>
-#include "mlir/Dialect/Rgn/RgnDialect.h"
-#include "mlir/IR/UseDefLists.h"
-#include "mlir/Interfaces/ControlFlowInterfaces.h"
 
 using namespace mlir;
 using namespace mlir::detail;
@@ -44,69 +48,79 @@ static bool hasSSADominance(Operation *op, unsigned index) {
 // DominanceInfoBase
 //===----------------------------------------------------------------------===//
 
-bool isRunRegionOp(Operation *op) {
-  return false;
+bool isRunRegionOp(Operation *op) { return false; }
+
+void processRegion(
+    DenseMap<Region *, std::pair<DTNode *, DTNode *>> &R2EntryExit,
+    DenseMap<mlir::Block *, std::pair<DTNode *, DTNode *>> &Block2Node,
+    DenseMap<Operation *, DTNode *> &Op2Node, Region *r);
+
+void processOp(
+    DenseMap<Region *, std::pair<DTNode *, DTNode *>> &R2EntryExit,
+    DenseMap<mlir::Block *, std::pair<DTNode *, DTNode *>> &Block2Node,
+    DenseMap<Operation *, DTNode *> &Op2Node, Operation *op) {
+  const int numRegions = op->getNumRegions();
+  for (int i = 0; i < numRegions; i++) {
+    Region &R = op->getRegion(i);
+    processRegion(R2EntryExit, Block2Node, Op2Node, &R);
+  }
 }
 
-void processRegion(DenseMap<Region *, std::pair<DTNode*, DTNode *>> &R2EntryExit,
-    DenseMap<mlir::Block *, std::pair<DTNode*, DTNode *>> &Block2Node, 
-    DenseMap<Operation *, DTNode*> &Op2Node,
-    Region *r);
+void getRegionsFromValue(Value v, std::set<mlir::Region *> &out) {
+  assert(!v.dyn_cast<BlockArgument>() && "region value cannot be block argument!");
 
-
-void processOp(DenseMap<Region *, std::pair<DTNode*, DTNode *>> &R2EntryExit,
-    DenseMap<mlir::Block *, std::pair<DTNode*, DTNode *>> &Block2Node,
-    DenseMap<Operation *, DTNode*> &Op2Node,
-    Operation *op) {
-    const int numRegions = op->getNumRegions();
-    for (int i = 0; i < numRegions; i++) {
-      Region &R = op->getRegion(i);
-      processRegion(R2EntryExit, Block2Node, Op2Node, &R);
+  if (RgnValOp val = v.getDefiningOp<RgnValOp>()) {
+    out.insert(&val.getRegion());
+  } else {
+    Operation *op = v.getDefiningOp();
+    assert(op && "value that is not a block argument must be an op!");
+    for (mlir::Value operand : op->getOperands()) {
+      getRegionsFromValue(operand, out);
     }
-
+  }
 }
 
-void processRegion(DenseMap<Region *, std::pair<DTNode*, DTNode *>> &R2EntryExit,
-    DenseMap<mlir::Block *, std::pair<DTNode*, DTNode *>> &Block2Node, 
-    DenseMap<Operation *, DTNode*> &Op2Node,
-    mlir::Region *R) {
-  
-
+void processRegion(
+    DenseMap<Region *, std::pair<DTNode *, DTNode *>> &R2EntryExit,
+    DenseMap<mlir::Block *, std::pair<DTNode *, DTNode *>> &Block2Node,
+    DenseMap<Operation *, DTNode *> &Op2Node, mlir::Region *R) {
 
   assert(R->getBlocks().size() > 0);
   // for each block, create entry/exit nodes.
-  for(mlir::Block &B : *R) {
-    // "entry node" for this block. 
-    Block2Node[&B].first = Block2Node[&B].second = (DTNode::newBlock(&B, nullptr));
+  for (mlir::Block &B : *R) {
+    // "entry node" for this block.
+    Block2Node[&B].first = Block2Node[&B].second =
+        (DTNode::newBlock(&B, nullptr));
   }
 
   Block &EntryBlock = R->getBlocks().front();
   DTNode *RegionEntry = Block2Node[&EntryBlock].first;
   DTNode *RegionExit = DTNode::newExit(R, nullptr);
-  R2EntryExit[R] = { RegionEntry, RegionExit};
+  R2EntryExit[R] = {RegionEntry, RegionExit};
 
-
-  for(mlir::Block &B : *R) {
-    for(Operation &Op : B) {
+  for (mlir::Block &B : *R) {
+    for (Operation &Op : B) {
       // recursively process regions.
       processOp(R2EntryExit, Block2Node, Op2Node, &Op);
 
       Op2Node[&Op] = Block2Node[&B].second;
 
       if (RgnCallValOp call = mlir::dyn_cast<RgnCallValOp>(Op)) {
-        RgnValOp val = call.getFn().getDefiningOp<RgnValOp>();
-        assert(val && "expected RgnCallVal to point to valid RgnVal");
-        // TODO: handle loops!
-
-        DTNode *CallEntry = R2EntryExit[&val.getRegion()].first;
-        DTNode *CallExit = R2EntryExit[&val.getRegion()].second;
+        // need over-approximation of all regions!
+        // call have call(select(cond, region_l, region_r))
+        std::set<Region *> calledRegions;
+        getRegionsFromValue(call.getFn(), calledRegions);
 
         DTNode *Cur = Block2Node[&B].second;
         DTNode *Next = DTNode::newOp(call, nullptr);
+        for (Region *R : calledRegions) {
+          DTNode *CallEntry = R2EntryExit[R].first;
+          DTNode *CallExit = R2EntryExit[R].second;
 
-        Cur->addSuccessor(CallEntry);
-        CallExit->addSuccessor(Next);
-        // this is now new final node in block. 
+          Cur->addSuccessor(CallEntry);
+          CallExit->addSuccessor(Next);
+        }
+        // this is now new final node in block.
         Block2Node[&B].second = Next;
       }
 
@@ -129,29 +143,27 @@ void processRegion(DenseMap<Region *, std::pair<DTNode*, DTNode *>> &R2EntryExit
       }
 
       // return like op. exit to region exit.
-      if (Op.hasTrait<OpTrait::IsTerminator>() && Op.hasTrait<OpTrait::ReturnLike>()) {
+      if (Op.hasTrait<OpTrait::IsTerminator>() &&
+          Op.hasTrait<OpTrait::ReturnLike>()) {
         // add edit to exit block of region
         DTNode *ThisExit = Block2Node[&B].second;
         ThisExit->addSuccessor(RegionExit);
         continue;
-      } 
+      }
 
       // not a return like terminator.
-      if (Op.hasTrait<OpTrait::IsTerminator>() && !Op.hasTrait<OpTrait::ReturnLike>())  {
-        for(BlockOperand &NextB : Op.getBlockOperands()) {
-          DTNode *ThisExit =  Block2Node[&B].second;
-          DTNode *NextEntry =  Block2Node[NextB.get()].first;
+      if (Op.hasTrait<OpTrait::IsTerminator>() &&
+          !Op.hasTrait<OpTrait::ReturnLike>()) {
+        for (BlockOperand &NextB : Op.getBlockOperands()) {
+          DTNode *ThisExit = Block2Node[&B].second;
+          DTNode *NextEntry = Block2Node[NextB.get()].first;
           ThisExit->addSuccessor(NextEntry);
         }
         continue;
       }
     }
   }
-
-
-
 }
-
 
 template <bool IsPostDom>
 void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
@@ -162,7 +174,7 @@ void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
   this->R2EntryExit.clear();
   this->Block2EntryExit.clear();
   this->Op2Node.clear();
-  processOp(this->R2EntryExit, this->Block2EntryExit,this->Op2Node, op);
+  processOp(this->R2EntryExit, this->Block2EntryExit, this->Op2Node, op);
 
   // op->walk([&](Operation *op) {
   //   const int numRegions = op->getNumRegions();
@@ -172,8 +184,8 @@ void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
   //   }
   // });
 
-
-  std::unique_ptr<llvm::DominatorTreeBase<DTNode, IsPostDom>> opDominance = std::make_unique<base>();
+  std::unique_ptr<llvm::DominatorTreeBase<DTNode, IsPostDom>> opDominance =
+      std::make_unique<base>();
   this->dt = new DT(this->R2EntryExit[&module.getRegion()].first);
   opDominance->recalculate(*this->dt);
 
@@ -181,7 +193,6 @@ void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
   // DTNode *Entry;
   // opDominance->recalculate(*this);
   // dominanceInfos.try_emplace(&region, std::move(opDominance));
-
 
   // dominanceInfos.clear();
 
@@ -324,17 +335,18 @@ bool DominanceInfoBase<IsPostDom>::properlyDominates(Block *a, Block *b) const {
 
   if (a->getParent() == b->getParent()) {
     // A block dominates itself but does not properly dominate itself.
-    if (a == b) { return b; }  
+    if (a == b) {
+      return b;
+    }
   } else {
     // These blocks are in different regions.
-    // if a's region does not contain b's region, then a does not dominates b. 
+    // if a's region does not contain b's region, then a does not dominates b.
     if (!a->getParent()->isProperAncestor(b->getParent())) {
       return false;
     }
 
     // a's region is the parent of b's region.
     // check if a ever calls `run` on `b`.
-    
   }
 
   // // A block dominates itself but does not properly dominate itself.
@@ -367,7 +379,8 @@ bool DominanceInfoBase<IsPostDom>::properlyDominates(Block *a, Block *b) const {
 
   // // Otherwise, use the standard dominance functionality.
 
-  // // If we don't have a dominance information for this region, assume that b is
+  // // If we don't have a dominance information for this region, assume that b
+  // is
   // // dominated by anything.
   // auto baseInfoIt = dominanceInfos.find(regionA);
   // if (baseInfoIt == dominanceInfos.end())
@@ -383,7 +396,8 @@ bool DominanceInfoBase<IsPostDom>::isReachableFromEntry(Block *a) const {
   auto baseInfoIt = dominanceInfos.find(regionA);
   if (baseInfoIt == dominanceInfos.end())
     return true;
-  // return baseInfoIt->second->isReachableFromEntry(this->Block2EntryExit[a].first);
+  // return
+  // baseInfoIt->second->isReachableFromEntry(this->Block2EntryExit[a].first);
 }
 
 template class detail::DominanceInfoBase</*IsPostDom=*/true>;
