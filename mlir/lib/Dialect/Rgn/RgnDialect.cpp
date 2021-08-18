@@ -49,7 +49,8 @@ RgnDialect::RgnDialect(mlir::MLIRContext *context)
     // clang-format off
     // addOperations<RgnReturnOp, RgnSymOp, RgnValOp, RgnCallSymOp, RgnCallValOp, RgnJumpSymOp, RgnJumpValOp
     // >();
-    addOperations<RgnReturnOp>();
+    addOperations<RgnReturnOp, RgnSymOp, RgnValOp, RgnCallSymOp
+    , RgnCallValOp, RgnJumpSymOp, RgnJumpValOp>();
 
     // addAttributes<DataConstructorAttr>();
     // addInterfaces<HaskInlinerInterface>();

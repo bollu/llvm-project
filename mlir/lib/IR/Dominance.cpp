@@ -14,10 +14,14 @@
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/Block.h"
 #include "mlir/IR/Operation.h"
+#include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/RegionKindInterface.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/Support/GenericDomTreeConstruction.h"
+#include "mlir/Dialect/Rgn/RgnDialect.h"
+#include "mlir/IR/UseDefLists.h"
+#include "mlir/Interfaces/ControlFlowInterfaces.h"
 
 using namespace mlir;
 using namespace mlir::detail;
@@ -42,40 +46,90 @@ bool isRunRegionOp(Operation *op) {
   return false;
 }
 
-void processRegion(DenseMap<Region *, std::pair<UnifiedDTNode*, UnifiedDTNode *>> &R2EntryExit,
-    DenseMap<mlir::Block *, UnifiedDTNode*> &Block2Node, 
+void processRegion(DenseMap<Region *, std::pair<DTNode*, DTNode *>> &R2EntryExit,
+    DenseMap<mlir::Block *, std::pair<DTNode*, DTNode *>> &Block2Node, 
+    DenseMap<Operation *, DTNode*> &Op2Node,
+    Region *r);
+
+
+void processOp(DenseMap<Region *, std::pair<DTNode*, DTNode *>> &R2EntryExit,
+    DenseMap<mlir::Block *, std::pair<DTNode*, DTNode *>> &Block2Node,
+    DenseMap<Operation *, DTNode*> &Op2Node,
+    Operation *op) {
+    const int numRegions = op->getNumRegions();
+    for (int i = 0; i < numRegions; i++) {
+      Region &R = op->getRegion(i);
+      processRegion(R2EntryExit, Block2Node, Op2Node, &R);
+    }
+
+}
+
+void processRegion(DenseMap<Region *, std::pair<DTNode*, DTNode *>> &R2EntryExit,
+    DenseMap<mlir::Block *, std::pair<DTNode*, DTNode *>> &Block2Node, 
+    DenseMap<Operation *, DTNode*> &Op2Node,
     mlir::Region *R) {
   
-  assert(R->getBlocks().size() > 0);
-  for(mlir::Block &B : *R) {
-    Block2Node[&B] = UnifiedDTNode::block(&B);
-  }
-  Block &EntryBlock = R->getBlocks().front();
-  UnifiedDTNode *EntryNode = Block2Node[&EntryBlock];
-  UnifiedDTNode *ExitNode = UnifiedDTNode::exit(R);
 
-  R2EntryExit[R] = { EntryNode, ExitNode};
+
+  assert(R->getBlocks().size() > 0);
+  // for each block, create entry/exit nodes.
+  for(mlir::Block &B : *R) {
+    // "entry node" for this block. 
+    Block2Node[&B].first = Block2Node[&B].second = (DTNode::block(&B));
+  }
+
+  Block &EntryBlock = R->getBlocks().front();
+  DTNode *RegionEntry = Block2Node[&EntryBlock].first;
+  DTNode *RegionExit = DTNode::exit(R);
+  R2EntryExit[R] = { RegionEntry, RegionExit};
+
+
+  for(mlir::Block &B : *R) {
+    for(Operation &Op : B) {
+      // recursively process regions.
+      processOp(R2EntryExit, Block2Node, Op2Node, &Op);
+
+      Op2Node[&Op] = Block2Node[&B].second;
+
+      // return like op. exit to region exit.
+      if (Op.hasTrait<OpTrait::IsTerminator>() && Op.hasTrait<OpTrait::ReturnLike>()) {
+        // add edit to exit block of region
+        DTNode *ThisExit = Block2Node[&B].second;
+        ThisExit->addSuccessor(RegionExit);
+        continue;
+      } 
+
+      // not a return like terminator.
+      if (Op.hasTrait<OpTrait::IsTerminator>() && !Op.hasTrait<OpTrait::ReturnLike>())  {
+        for(BlockOperand &NextB : Op.getBlockOperands()) {
+          DTNode *ThisExit =  Block2Node[&B].second;
+          DTNode *NextEntry =  Block2Node[NextB.get()].first;
+          ThisExit->addSuccessor(NextEntry);
+        }
+        continue;
+      }
+    }
+  }
+
+
+
 }
 
 
 template <bool IsPostDom>
 void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
-  DenseMap<Block *, UnifiedDTNode*> Block2Node;
-  DenseMap<Operation *, UnifiedDTNode*> Op2Node;
-  DenseMap<Region *, std::pair<UnifiedDTNode*, UnifiedDTNode *>> R2EntryExit;
+  DenseMap<Block *, DTNode*> Block2Node;
+  DenseMap<Operation *, DTNode*> Op2Node;
+  DenseMap<Region *, std::pair<DTNode*, DTNode *>> R2EntryExit;
 
-  op->walk([&](Operation *op) {
-    const int numRegions = op->getNumRegions();
-    for (int i = 0; i < numRegions; i++) {
-      Region &R = op->getRegion(i);
-      processRegion(R2EntryExit, Block2Node, &R);
-    }
-  });
+  // op->walk([&](Operation *op) {
+  //   const int numRegions = op->getNumRegions();
+  //   for (int i = 0; i < numRegions; i++) {
+  //     Region &R = op->getRegion(i);
+  //     processRegion(R2EntryExit, Block2Node, &R);
+  //   }
+  // });
 
-  // add links according to rgn.* instructions.
-  op->walk([&](Operation *op) {
-
-  });
 
   dominanceInfos.clear();
 

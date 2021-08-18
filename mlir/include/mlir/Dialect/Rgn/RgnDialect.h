@@ -1,3 +1,9 @@
+#include "mlir/IR/Dialect.h"
+#include "mlir/IR/OpDefinition.h"
+#include "mlir/IR/MLIRContext.h"
+#include "mlir/Interfaces/ControlFlowInterfaces.h"
+#include "mlir/Pass/Pass.h"
+
 class RgnDialect : public mlir::Dialect {
 public:
   explicit RgnDialect(mlir::MLIRContext *ctx);
@@ -7,8 +13,9 @@ public:
 
 class RgnReturnOp
     : public mlir::Op<RgnReturnOp, mlir::OpTrait::ZeroResult,
-                      mlir::OpTrait::ZeroSuccessor, mlir::OpTrait::IsTerminator,
-                      mlir::OpTrait::OneOperand> {
+                      mlir::OpTrait::ZeroSuccessor, mlir::OpTrait::ReturnLike,
+                      mlir::OpTrait::OneOperand,
+                      mlir::OpTrait::IsTerminator> {
 public:
   using Op::Op;
   static llvm::StringRef getOperationName() { return "rgn.return"; };
@@ -81,7 +88,8 @@ public:
 
 // call a value.
 class RgnCallValOp
-    : public mlir::Op<RgnCallValOp, mlir::OpTrait::VariadicOperands,
+    : public mlir::Op<RgnCallValOp, 
+                      mlir::OpTrait::VariadicOperands,
                       mlir::OpTrait::VariadicResults> {
 public:
   using Op::Op;
@@ -117,7 +125,7 @@ public:
 };
 
 // call a symbol.
-class RgnCallSymOp : public mlir::Op<RgnCallSymOp> {
+class RgnCallSymOp : public mlir::Op<RgnCallSymOp, mlir::OpTrait::VariadicOperands> {
 public:
   using Op::Op;
   static llvm::StringRef getOperationName() { return "rgn.callsym"; };

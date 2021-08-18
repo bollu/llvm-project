@@ -17,15 +17,15 @@
 extern template class llvm::DominatorTreeBase<mlir::Block, false>;
 extern template class llvm::DominatorTreeBase<mlir::Block, true>;
 
-struct UnifiedDTNode {
+struct DTNode {
   enum class Kind {
     DTBlock,
     DTExit
   };
 
-  UnifiedDTNode::Kind kind;
+  DTNode::Kind kind;
 
-  using SuccessorRange = std::vector<UnifiedDTNode *>; 
+  using SuccessorRange = std::vector<DTNode *>; 
   SuccessorRange successors;
   
   using succ_iterator = SuccessorRange::iterator;
@@ -33,16 +33,18 @@ struct UnifiedDTNode {
   succ_iterator succ_end() { return getSuccessors().end(); }
   SuccessorRange &getSuccessors() { return this->successors; }
 
-  static UnifiedDTNode* block(mlir::Block *b) {
-    UnifiedDTNode *node = new UnifiedDTNode;
+  void addSuccessor(DTNode *next) { this->successors.push_back(next); }
+  
+  static DTNode* block(mlir::Block *b) {
+    DTNode *node = new DTNode;
     node->b = b;
     node->kind = Kind::DTBlock;
     return node;
 
   }
 
-  static UnifiedDTNode* exit(mlir::Region *r) {
-    UnifiedDTNode *node = new UnifiedDTNode;
+  static DTNode* exit(mlir::Region *r) {
+    DTNode *node = new DTNode;
     node->r = r;
     node->kind = Kind::DTExit;
     return node;
@@ -50,7 +52,7 @@ struct UnifiedDTNode {
   }
 
 private:
-  UnifiedDTNode() {
+  DTNode() {
 
   }
   mlir::Block *b = nullptr;
@@ -59,10 +61,10 @@ private:
 
 
 namespace llvm {
-template <> struct GraphTraits<UnifiedDTNode *> {
-  using ChildIteratorType = UnifiedDTNode::succ_iterator;
+template <> struct GraphTraits<DTNode *> {
+  using ChildIteratorType = DTNode::succ_iterator;
   // using Node = ;
-  using NodeRef = UnifiedDTNode*;
+  using NodeRef = DTNode*;
 
   static NodeRef getEntryNode(NodeRef bb) { return bb; }
 
