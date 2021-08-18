@@ -188,10 +188,13 @@ private:
       // Try to find an immediate dominator and check whether the parent block
       // is above the immediate dominator (if any).
       DominanceInfoNode *idom = dominators.getNode(currentBlock)->getIDom();
-      if (idom && dominators.properlyDominates(parentBlock, idom->getBlock())) {
+      // if (idom && dominators.properlyDominates(parentBlock, idom->getBlock())) {
+      assert(false && "disabled code |if (idom && dominators.properlyDominates(parentBlock, idom->getBlock()))|");
+      if (idom && false) {
         // If the current immediate dominator is below the placement block, move
         // to the immediate dominator block.
-        currentBlock = idom->getBlock();
+        // currentBlock = idom->getBlock();
+        assert(false && "currentBlock = idom->getBlock()");
         state.recordMoveToDominator(currentBlock);
       } else {
         // We have to move to our parent block since an immediate dominator does

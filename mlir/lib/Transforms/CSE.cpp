@@ -195,7 +195,8 @@ void CSE::simplifyRegion(ScopedMapTy &knownValues, DominanceInfo &domInfo,
     // Check to see if we need to process this node.
     if (!currentNode->processed) {
       currentNode->processed = true;
-      simplifyBlock(knownValues, domInfo, currentNode->node->getBlock());
+      // simplifyBlock(knownValues, domInfo, currentNode->node->getBlock());
+      assert(false && "disabled code |// simplifyBlock(knownValues, domInfo, currentNode->node->getBlock())|");
     }
 
     // Otherwise, check to see if we need to process a child node.

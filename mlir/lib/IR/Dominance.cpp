@@ -18,7 +18,9 @@
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/RegionKindInterface.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/IR/Dominators.h"
 #include "llvm/Support/GenericDomTreeConstruction.h"
+#include <algorithm>
 #include "mlir/Dialect/Rgn/RgnDialect.h"
 #include "mlir/IR/UseDefLists.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
@@ -75,12 +77,12 @@ void processRegion(DenseMap<Region *, std::pair<DTNode*, DTNode *>> &R2EntryExit
   // for each block, create entry/exit nodes.
   for(mlir::Block &B : *R) {
     // "entry node" for this block. 
-    Block2Node[&B].first = Block2Node[&B].second = (DTNode::newBlock(&B));
+    Block2Node[&B].first = Block2Node[&B].second = (DTNode::newBlock(&B, nullptr));
   }
 
   Block &EntryBlock = R->getBlocks().front();
   DTNode *RegionEntry = Block2Node[&EntryBlock].first;
-  DTNode *RegionExit = DTNode::newExit(R);
+  DTNode *RegionExit = DTNode::newExit(R, nullptr);
   R2EntryExit[R] = { RegionEntry, RegionExit};
 
 
@@ -100,7 +102,7 @@ void processRegion(DenseMap<Region *, std::pair<DTNode*, DTNode *>> &R2EntryExit
         DTNode *CallExit = R2EntryExit[&val.getRegion()].second;
 
         DTNode *Cur = Block2Node[&B].second;
-        DTNode *Next = DTNode::newOp(call);
+        DTNode *Next = DTNode::newOp(call, nullptr);
 
         Cur->addSuccessor(CallEntry);
         CallExit->addSuccessor(Next);
@@ -153,9 +155,14 @@ void processRegion(DenseMap<Region *, std::pair<DTNode*, DTNode *>> &R2EntryExit
 
 template <bool IsPostDom>
 void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
-  DenseMap<Block *, DTNode*> Block2Node;
-  DenseMap<Operation *, DTNode*> Op2Node;
-  DenseMap<Region *, std::pair<DTNode*, DTNode *>> R2EntryExit;
+
+  ModuleOp module = dyn_cast<ModuleOp>(op);
+  assert(module);
+
+  this->R2EntryExit.clear();
+  this->Block2EntryExit.clear();
+  this->Op2Node.clear();
+  processOp(this->R2EntryExit, this->Block2EntryExit,this->Op2Node, op);
 
   // op->walk([&](Operation *op) {
   //   const int numRegions = op->getNumRegions();
@@ -166,34 +173,44 @@ void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
   // });
 
 
-  dominanceInfos.clear();
+  std::unique_ptr<llvm::DominatorTreeBase<DTNode, IsPostDom>> opDominance = std::make_unique<base>();
+  this->dt = new DT(this->R2EntryExit[&module.getRegion()].first);
+  // opDominance->recalculate(*this->dt);
 
-  // Build the dominance for each of the operation regions.
-  op->walk([&](Operation *op) {
-    auto kindInterface = dyn_cast<RegionKindInterface>(op);
-    unsigned numRegions = op->getNumRegions();
-    for (unsigned i = 0; i < numRegions; i++) {
-      Region &region = op->getRegion(i);
-      // Don't compute dominance if the region is empty.
-      if (region.empty())
-        continue;
+  // DTNode *Entry = R2EntryExit[op].first;
+  // DTNode *Entry;
+  // opDominance->recalculate(*this);
+  // dominanceInfos.try_emplace(&region, std::move(opDominance));
 
-      // Dominance changes based on the region type. Avoid the helper
-      // function here so we don't do the region cast repeatedly.
-      bool hasSSADominance =
-          op->isRegistered() &&
-          (!kindInterface || kindInterface.hasSSADominance(i));
-      // If a region has SSADominance, then compute detailed dominance
-      // info.  Otherwise, all values in the region are live anywhere
-      // in the region, which is represented as an empty entry in the
-      // dominanceInfos map.
-      if (hasSSADominance) {
-        auto opDominance = std::make_unique<base>();
-        opDominance->recalculate(region);
-        dominanceInfos.try_emplace(&region, std::move(opDominance));
-      }
-    }
-  });
+
+  // dominanceInfos.clear();
+
+  // // Build the dominance for each of the operation regions.
+  // op->walk([&](Operation *op) {
+  //   auto kindInterface = dyn_cast<RegionKindInterface>(op);
+  //   unsigned numRegions = op->getNumRegions();
+  //   for (unsigned i = 0; i < numRegions; i++) {
+  //     Region &region = op->getRegion(i);
+  //     // Don't compute dominance if the region is empty.
+  //     if (region.empty())
+  //       continue;
+
+  //     // Dominance changes pased on the region type. Avoid the helper
+  //     // function here so we don't do the region cast repeatedly.
+  //     bool hasSSADominance =
+  //         op->isRegistered() &&
+  //         (!kindInterface || kindInterface.hasSSADominance(i));
+  //     // If a region has SSADominance, then compute detailed dominance
+  //     // info.  Otherwise, all values in the region are live anywhere
+  //     // in the region, which is represented as an empty entry in the
+  //     // dominanceInfos map.
+  //     if (hasSSADominance) {
+  //       auto opDominance = std::make_unique<base>();
+  //       opDominance->recalculate(region);
+  //       dominanceInfos.try_emplace(&region, std::move(opDominance));
+  //     }
+  //   }
+  // });
 }
 
 /// Walks up the list of containers of the given block and calls the
@@ -266,6 +283,7 @@ template <bool IsPostDom>
 Block *
 DominanceInfoBase<IsPostDom>::findNearestCommonDominator(Block *a,
                                                          Block *b) const {
+
   assert(false && "unimplemented");
 
   // // If either a or b are null, then conservatively return nullptr.
@@ -365,7 +383,7 @@ bool DominanceInfoBase<IsPostDom>::isReachableFromEntry(Block *a) const {
   auto baseInfoIt = dominanceInfos.find(regionA);
   if (baseInfoIt == dominanceInfos.end())
     return true;
-  return baseInfoIt->second->isReachableFromEntry(a);
+  // return baseInfoIt->second->isReachableFromEntry(this->Block2EntryExit[a].first);
 }
 
 template class detail::DominanceInfoBase</*IsPostDom=*/true>;

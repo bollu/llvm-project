@@ -18,6 +18,18 @@
 extern template class llvm::DominatorTreeBase<mlir::Block, false>;
 extern template class llvm::DominatorTreeBase<mlir::Block, true>;
 
+struct DTNode; // forward declare
+
+struct DT {
+  DT(DTNode *entry) : entry(entry) {};
+
+  DTNode *entry;
+  using NodesT = llvm::SmallVector<DTNode *, 4>;
+  NodesT Nodes;
+
+};
+
+
 struct DTNode {
   enum class Kind {
     DTBlock,
@@ -35,44 +47,55 @@ struct DTNode {
   succ_iterator succ_end() { return getSuccessors().end(); }
   SuccessorRange &getSuccessors() { return this->successors; }
 
-  void addSuccessor(DTNode *next) { this->successors.push_back(next); }
+  void addSuccessor(DTNode *&next) {
+    this->successors.push_back(next);
+  }
 
-  static DTNode* newBlock(mlir::Block *b) {
-    DTNode *node = new DTNode;
+  static DTNode* newBlock(mlir::Block *b, DT *parent) {
+    DTNode *node = new DTNode(parent);
     node->b = b;
     node->kind = Kind::DTBlock;
     return node;
 
   }
 
-  static DTNode* newExit(mlir::Region *r) {
-    DTNode *node = new DTNode;
+  static DTNode* newExit(mlir::Region *r, DT *parent) {
+    DTNode *node = new DTNode(parent);
     node->r = r;
     node->kind = Kind::DTExit;
     return node;
 
   }
 
-  static DTNode* newOp(mlir::Operation *op) {
-    DTNode *node = new DTNode;
+  static DTNode* newOp(mlir::Operation *op, DT *parent) {
+    DTNode *node = new DTNode(parent);
     node->op = op;
     node->kind = Kind::DTOp;
     return node;
 
   }
 
-private:
-  DTNode() {
+  DT *getParent() { return parent; }
 
+  void printAsOperand(llvm::raw_ostream &os, bool printType = true) {
+    assert(false && "unimplemented print for DTNode");
   }
+
+
+  DTNode(const DTNode &other) = default;
+  // explicit DTNode() = default;
+private:
+  DTNode(DT *parent) : parent(parent) {}
+  DT *parent = nullptr;
   mlir::Block *b = nullptr;
   mlir::Region *r = nullptr;
   mlir::Operation *op = nullptr;
 };
 
 
+
 namespace llvm {
-template <> struct GraphTraits<DTNode *> {
+template <> struct GraphTraits<::DTNode *> {
   using ChildIteratorType = DTNode::succ_iterator;
   // using Node = ;
   using NodeRef = DTNode*;
@@ -83,17 +106,32 @@ template <> struct GraphTraits<DTNode *> {
     return node->succ_begin();
   }
   static ChildIteratorType child_end(NodeRef node) { return node->succ_end(); }
+
+};
+}
+
+namespace llvm {
+template <> struct GraphTraits<DT *> 
+  : public GraphTraits<DTNode *> {
+  // refer to call graph
+  using NodeRef = DTNode *;
+  static DTNode *getEntryNode(DT *dt) { return dt->entry; }
+  
+  using nodes_iterator = DT::NodesT::iterator;
+  static nodes_iterator nodes_begin(DT *base) { return base->Nodes.begin(); }
+  static nodes_iterator nodes_end(DT *base) { return  base->Nodes.end(); }
+
 };
 }
 
 
 namespace mlir {
-using DominanceInfoNode = llvm::DomTreeNodeBase<Block>;
+using DominanceInfoNode = llvm::DomTreeNodeBase<DTNode>;
 class Operation;
 
 namespace detail {
 template <bool IsPostDom> class DominanceInfoBase {
-  using base = llvm::DominatorTreeBase<Block, IsPostDom>;
+  using base = llvm::DominatorTreeBase<DTNode, IsPostDom>;
 
 public:
   DominanceInfoBase(Operation *op) { recalculate(op); }
@@ -141,6 +179,11 @@ protected:
   // a mapping from parent regions to child regions which they dominate
   DenseMap<Region *, SmallVector<Region *, 4>> domParent2Children;
   DenseMap<Region *, Region *> domChild2Parent;
+
+  DT *dt;
+  DenseMap<Block *, std::pair<DTNode*, DTNode*>> Block2EntryExit;
+  DenseMap<Operation *, DTNode*> Op2Node;
+  DenseMap<Region *, std::pair<DTNode*, DTNode *>> R2EntryExit;
 
 };
 } // end namespace detail
