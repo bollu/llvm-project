@@ -75,12 +75,12 @@ void processRegion(DenseMap<Region *, std::pair<DTNode*, DTNode *>> &R2EntryExit
   // for each block, create entry/exit nodes.
   for(mlir::Block &B : *R) {
     // "entry node" for this block. 
-    Block2Node[&B].first = Block2Node[&B].second = (DTNode::block(&B));
+    Block2Node[&B].first = Block2Node[&B].second = (DTNode::newBlock(&B));
   }
 
   Block &EntryBlock = R->getBlocks().front();
   DTNode *RegionEntry = Block2Node[&EntryBlock].first;
-  DTNode *RegionExit = DTNode::exit(R);
+  DTNode *RegionExit = DTNode::newExit(R);
   R2EntryExit[R] = { RegionEntry, RegionExit};
 
 
@@ -90,6 +90,41 @@ void processRegion(DenseMap<Region *, std::pair<DTNode*, DTNode *>> &R2EntryExit
       processOp(R2EntryExit, Block2Node, Op2Node, &Op);
 
       Op2Node[&Op] = Block2Node[&B].second;
+
+      if (RgnCallValOp call = mlir::dyn_cast<RgnCallValOp>(Op)) {
+        RgnValOp val = call.getFn().getDefiningOp<RgnValOp>();
+        assert(val && "expected RgnCallVal to point to valid RgnVal");
+        // TODO: handle loops!
+
+        DTNode *CallEntry = R2EntryExit[&val.getRegion()].first;
+        DTNode *CallExit = R2EntryExit[&val.getRegion()].second;
+
+        DTNode *Cur = Block2Node[&B].second;
+        DTNode *Next = DTNode::newOp(call);
+
+        Cur->addSuccessor(CallEntry);
+        CallExit->addSuccessor(Next);
+        // this is now new final node in block. 
+        Block2Node[&B].second = Next;
+      }
+
+      if (RgnJumpValOp jmp = mlir::dyn_cast<RgnJumpValOp>(Op)) {
+        RgnValOp val = jmp.getFn().getDefiningOp<RgnValOp>();
+        assert(val && "expected RgnJmpVal to point to valid RgnVal");
+        // TODO: handle loops!
+
+        // this is now new final node in block.
+        DTNode *CallEntry = R2EntryExit[&val.getRegion()].first;
+        DTNode *CallExit = R2EntryExit[&val.getRegion()].second;
+
+        DTNode *Cur = Block2Node[&B].second;
+        // DTNode *Next = DTNode::newOp(jmp);
+
+        Cur->addSuccessor(CallEntry);
+        // CallExit->addSuccessor(Next);
+        // vv THINK: does this matter?
+        Block2Node[&B].second = CallExit;
+      }
 
       // return like op. exit to region exit.
       if (Op.hasTrait<OpTrait::IsTerminator>() && Op.hasTrait<OpTrait::ReturnLike>()) {

@@ -11,6 +11,7 @@
 
 #include "mlir/IR/RegionGraphTraits.h"
 #include "llvm/Support/GenericDomTree.h"
+#include "mlir/IR/Value.h"
 #include "mlir/Support/LLVM.h"
 #include "llvm/ADT/GraphTraits.h"
 
@@ -20,7 +21,8 @@ extern template class llvm::DominatorTreeBase<mlir::Block, true>;
 struct DTNode {
   enum class Kind {
     DTBlock,
-    DTExit
+    DTExit,
+    DTOp, // node for an operation that implies region semantics.
   };
 
   DTNode::Kind kind;
@@ -34,8 +36,8 @@ struct DTNode {
   SuccessorRange &getSuccessors() { return this->successors; }
 
   void addSuccessor(DTNode *next) { this->successors.push_back(next); }
-  
-  static DTNode* block(mlir::Block *b) {
+
+  static DTNode* newBlock(mlir::Block *b) {
     DTNode *node = new DTNode;
     node->b = b;
     node->kind = Kind::DTBlock;
@@ -43,10 +45,18 @@ struct DTNode {
 
   }
 
-  static DTNode* exit(mlir::Region *r) {
+  static DTNode* newExit(mlir::Region *r) {
     DTNode *node = new DTNode;
     node->r = r;
     node->kind = Kind::DTExit;
+    return node;
+
+  }
+
+  static DTNode* newOp(mlir::Operation *op) {
+    DTNode *node = new DTNode;
+    node->op = op;
+    node->kind = Kind::DTOp;
     return node;
 
   }
@@ -57,6 +67,7 @@ private:
   }
   mlir::Block *b = nullptr;
   mlir::Region *r = nullptr;
+  mlir::Operation *op = nullptr;
 };
 
 
