@@ -175,7 +175,7 @@ void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
 
   std::unique_ptr<llvm::DominatorTreeBase<DTNode, IsPostDom>> opDominance = std::make_unique<base>();
   this->dt = new DT(this->R2EntryExit[&module.getRegion()].first);
-  // opDominance->recalculate(*this->dt);
+  opDominance->recalculate(*this->dt);
 
   // DTNode *Entry = R2EntryExit[op].first;
   // DTNode *Entry;

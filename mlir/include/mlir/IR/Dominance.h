@@ -30,6 +30,8 @@ struct DT {
 };
 
 
+// look at RegionGraphTraits.h
+
 struct DTNode {
   enum class Kind {
     DTBlock,
@@ -46,6 +48,15 @@ struct DTNode {
   succ_iterator succ_begin() { return getSuccessors().begin(); }
   succ_iterator succ_end() { return getSuccessors().end(); }
   SuccessorRange &getSuccessors() { return this->successors; }
+
+  using PredecessorRange = std::vector<DTNode *>; 
+  PredecessorRange predecessors;
+  
+  using pred_iterator = PredecessorRange::iterator;
+  pred_iterator pred_begin() { return getPredecessors().begin(); }
+  pred_iterator pred_end() { return getPredecessors().end(); }
+  PredecessorRange &getPredecessors() { return this->predecessors; }
+
 
   void addSuccessor(DTNode *&next) {
     this->successors.push_back(next);
@@ -95,13 +106,12 @@ private:
 
 
 namespace llvm {
-template <> struct GraphTraits<::DTNode *> {
-  using ChildIteratorType = DTNode::succ_iterator;
+template <> struct GraphTraits<DTNode *> {
   // using Node = ;
   using NodeRef = DTNode*;
-
   static NodeRef getEntryNode(NodeRef bb) { return bb; }
 
+  using ChildIteratorType = DTNode::succ_iterator;
   static ChildIteratorType child_begin(NodeRef node) {
     return node->succ_begin();
   }
@@ -110,11 +120,13 @@ template <> struct GraphTraits<::DTNode *> {
 };
 }
 
+
+
+
 namespace llvm {
 template <> struct GraphTraits<DT *> 
   : public GraphTraits<DTNode *> {
   // refer to call graph
-  using NodeRef = DTNode *;
   static DTNode *getEntryNode(DT *dt) { return dt->entry; }
   
   using nodes_iterator = DT::NodesT::iterator;
@@ -122,6 +134,42 @@ template <> struct GraphTraits<DT *>
   static nodes_iterator nodes_end(DT *base) { return  base->Nodes.end(); }
 
 };
+}
+
+namespace llvm {
+template <> struct GraphTraits<Inverse<DTNode *>> {
+  using ChildIteratorType = DTNode::pred_iterator;
+  using NodeRef = DTNode *;
+  static NodeRef getEntryNode(Inverse<NodeRef> inverseGraph) {
+    return inverseGraph.Graph;
+  }
+  static inline ChildIteratorType child_begin(NodeRef node) {
+    return node->pred_begin();
+  }
+  static inline ChildIteratorType child_end(NodeRef node) {
+    return node->pred_end();
+  }
+};
+}
+
+namespace llvm {
+template <>
+struct GraphTraits<Inverse<DT *>>
+    : public GraphTraits<Inverse<DTNode *>> {
+  using GraphType = Inverse<DT*>;
+  using NodeRef = DTNode *;
+
+  static NodeRef getEntryNode(Inverse<DT*> dt) { return dt.Graph->entry; }
+
+  using nodes_iterator = DT::NodesT::iterator;
+  static nodes_iterator nodes_begin(Inverse<DT*> dt) {
+    return nodes_iterator(dt.Graph->Nodes.begin()); 
+  }
+  static nodes_iterator nodes_end(Inverse<DT*> dt) {
+    return nodes_iterator(dt.Graph->Nodes.end()); 
+  }
+};
+
 }
 
 
