@@ -18,31 +18,60 @@ extern template class llvm::DominatorTreeBase<mlir::Block, false>;
 extern template class llvm::DominatorTreeBase<mlir::Block, true>;
 
 struct UnifiedDTNode {
-  mlir::Block *b;
+  enum class Kind {
+    DTBlock,
+    DTExit
+  };
 
-  using SuccessorRange = llvm::SmallVector<mlir::Block *, 4>; 
-  mlir::SuccessorRange successors;
+  UnifiedDTNode::Kind kind;
+
+  using SuccessorRange = std::vector<UnifiedDTNode *>; 
+  SuccessorRange successors;
   
   using succ_iterator = SuccessorRange::iterator;
   succ_iterator succ_begin() { return getSuccessors().begin(); }
   succ_iterator succ_end() { return getSuccessors().end(); }
-  SuccessorRange getSuccessors() { return SuccessorRange(this->successors); }
+  SuccessorRange &getSuccessors() { return this->successors; }
+
+  static UnifiedDTNode* block(mlir::Block *b) {
+    UnifiedDTNode *node = new UnifiedDTNode;
+    node->b = b;
+    node->kind = Kind::DTBlock;
+    return node;
+
+  }
+
+  static UnifiedDTNode* exit(mlir::Region *r) {
+    UnifiedDTNode *node = new UnifiedDTNode;
+    node->r = r;
+    node->kind = Kind::DTExit;
+    return node;
+
+  }
+
+private:
+  UnifiedDTNode() {
+
+  }
+  mlir::Block *b = nullptr;
+  mlir::Region *r = nullptr;
 };
 
 
-// namespace llvm {
-// template <> struct GraphTraits<UnifiedDTNode *> {
-//   using ChildIteratorType = UnifiedDTNode::succ_iterator;
-//   using Node = UnifiedDTNode;
-//   using NodeRef = Node *;
+namespace llvm {
+template <> struct GraphTraits<UnifiedDTNode *> {
+  using ChildIteratorType = UnifiedDTNode::succ_iterator;
+  // using Node = ;
+  using NodeRef = UnifiedDTNode*;
 
-//   static NodeRef getEntryNode(NodeRef bb) { return bb; }
+  static NodeRef getEntryNode(NodeRef bb) { return bb; }
 
-//   static ChildIteratorType child_begin(NodeRef node) {
-//     return node->succ_begin();
-//   }
-//   static ChildIteratorType child_end(NodeRef node) { return node->succ_end(); }
-// };
+  static ChildIteratorType child_begin(NodeRef node) {
+    return node->succ_begin();
+  }
+  static ChildIteratorType child_end(NodeRef node) { return node->succ_end(); }
+};
+}
 
 
 namespace mlir {

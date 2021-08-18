@@ -59,6 +59,7 @@ add_mlir_library(MLIRTestTransforms
   MLIRPass
   MLIRROCDLIR
   MLIRROCDLToLLVMIRTranslation
+  MLIRRgn # contains region transforms
   MLIRSCF
   MLIRSCFTransforms
   MLIRStandardOpsTransforms

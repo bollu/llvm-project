@@ -12,6 +12,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/IR/Dominance.h"
+#include "mlir/IR/Block.h"
+#include "mlir/IR/Operation.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/RegionKindInterface.h"
 #include "llvm/ADT/DenseMap.h"
@@ -40,9 +42,41 @@ bool isRunRegionOp(Operation *op) {
   return false;
 }
 
+void processRegion(DenseMap<Region *, std::pair<UnifiedDTNode*, UnifiedDTNode *>> &R2EntryExit,
+    DenseMap<mlir::Block *, UnifiedDTNode*> &Block2Node, 
+    mlir::Region *R) {
+  
+  assert(R->getBlocks().size() > 0);
+  for(mlir::Block &B : *R) {
+    Block2Node[&B] = UnifiedDTNode::block(&B);
+  }
+  Block &EntryBlock = R->getBlocks().front();
+  UnifiedDTNode *EntryNode = Block2Node[&EntryBlock];
+  UnifiedDTNode *ExitNode = UnifiedDTNode::exit(R);
+
+  R2EntryExit[R] = { EntryNode, ExitNode};
+}
+
 
 template <bool IsPostDom>
 void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
+  DenseMap<Block *, UnifiedDTNode*> Block2Node;
+  DenseMap<Operation *, UnifiedDTNode*> Op2Node;
+  DenseMap<Region *, std::pair<UnifiedDTNode*, UnifiedDTNode *>> R2EntryExit;
+
+  op->walk([&](Operation *op) {
+    const int numRegions = op->getNumRegions();
+    for (int i = 0; i < numRegions; i++) {
+      Region &R = op->getRegion(i);
+      processRegion(R2EntryExit, Block2Node, &R);
+    }
+  });
+
+  // add links according to rgn.* instructions.
+  op->walk([&](Operation *op) {
+
+  });
+
   dominanceInfos.clear();
 
   // Build the dominance for each of the operation regions.

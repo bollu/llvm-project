@@ -39,6 +39,7 @@ add_mlir_library(MLIRTransforms
   MLIRLinalg
   MLIRLoopLikeInterface
   MLIRMemRef
+  MLIRRgn # region dialect
   MLIRSCF
   MLIRPass
   MLIRTransformUtils

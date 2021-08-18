@@ -19,6 +19,7 @@ add_mlir_library(MLIRTransformUtils
   MLIRAnalysis
   MLIRLoopAnalysis
   MLIRMemRef
+  # MLIRRgn # region dialect
   MLIRSCF
   MLIRPass
   MLIRRewrite
