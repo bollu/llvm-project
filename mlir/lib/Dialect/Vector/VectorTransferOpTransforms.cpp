@@ -80,7 +80,7 @@ bool TransferOptimization::isReachable(Operation *start, Operation *dest) {
   assert(start->getParentRegion() == dest->getParentRegion() &&
          "This function only works for ops i the same region");
   // Simple case where the start op dominate the destination.
-  if (dominators.dominates(start, dest))
+  if (dominators.dominatesOO(start, dest))
     return true;
   Block *startBlock = start->getBlock();
   Block *destBlock = dest->getBlock();
@@ -152,7 +152,7 @@ void TransferOptimization::deadStoreOp(vector::TransferWriteOp write) {
     // the region to know if the read is reachable with more precision.
     if (readAncestor == nullptr || !isReachable(writeAncestor, readAncestor))
       continue;
-    if (!dominators.dominates(firstOverwriteCandidate, read)) {
+    if (!dominators.dominatesOO(firstOverwriteCandidate, read)) {
       LLVM_DEBUG(DBGS() << "Store may not be dead due to op: " << *read
                         << "\n");
       return;
@@ -191,12 +191,12 @@ void TransferOptimization::storeToLoadForwarding(vector::TransferReadOp read) {
               cast<VectorTransferOpInterface>(write.getOperation()),
               cast<VectorTransferOpInterface>(read.getOperation())))
         continue;
-      if (dominators.dominates(write, read) &&
+      if (dominators.dominatesOO(write, read) &&
           transferEncompasses(write, read)) {
-        if (lastwrite == nullptr || dominators.dominates(lastwrite, write))
+        if (lastwrite == nullptr || dominators.dominatesOO(lastwrite, write))
           lastwrite = write;
         else
-          assert(dominators.dominates(write, lastwrite));
+          assert(dominators.dominatesOO(write, lastwrite));
         continue;
       }
     }

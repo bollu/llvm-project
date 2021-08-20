@@ -447,10 +447,10 @@ void mlir::linalg::hoistRedundantVectorTransfers(FuncOp func) {
       // TODO: may want to memoize this information for performance but it
       // likely gets invalidated often.
       DominanceInfo dom(loop);
-      if (!dom.properlyDominates(transferRead.getOperation(), transferWrite))
+      if (!dom.properlyDominatesOO(transferRead.getOperation(), transferWrite))
         return WalkResult::advance();
       for (auto &use : transferRead.source().getUses()) {
-        if (!dom.properlyDominates(loop, use.getOwner()))
+        if (!dom.properlyDominatesOO(loop, use.getOwner()))
           continue;
         if (use.getOwner() == transferRead.getOperation() ||
             use.getOwner() == transferWrite.getOperation())
@@ -551,7 +551,7 @@ hoistPaddingOnTensorsPrerequisites(linalg::PadTensorOp padTensorOp, int nLevels,
   DominanceInfo domInfo(outermostEnclosingForOp);
   getBackwardSlice(padTensorOp.getOperation(), &backwardSlice,
                    [&](Operation *op) {
-                     return domInfo.dominates(outermostEnclosingForOp, op);
+                     return domInfo.dominatesOO(outermostEnclosingForOp, op);
                    });
 
   // Bail on any op with a region that is not a LoopLikeInterface or a LinalgOp.

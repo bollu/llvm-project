@@ -142,7 +142,7 @@ void MemRefDataFlowOpt::forwardStoreToLoad(AffineReadOpInterface loadOp) {
       continue;
 
     // 2. The store has to dominate the load op to be candidate.
-    if (!domInfo->dominates(storeOp, loadOp))
+    if (!domInfo->dominatesOO(storeOp, loadOp))
       continue;
 
     // We now have a candidate for forwarding.

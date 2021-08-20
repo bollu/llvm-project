@@ -255,12 +255,12 @@ public:
   /// an SSACFG region, Operation A dominates Operation B in the same block if A
   /// preceeds B. In a Graph region, all operations in a block dominate all
   /// other operations in the same block.
-  bool properlyDominates(Operation *a, Operation *b) const;
+  bool properlyDominatesOO(Operation *a, Operation *b) const;
 
   /// Return true if operation A dominates operation B, i.e. if A and B are the
   /// same operation or A properly dominates B.
-  bool dominates(Operation *a, Operation *b) const {
-    return a == b || properlyDominates(a, b);
+  bool dominatesOO(Operation *a, Operation *b) const {
+    return a == b || properlyDominatesOO(a, b);
   }
 
   /// Return true if value A properly dominates operation B, i.e if the

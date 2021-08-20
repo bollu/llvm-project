@@ -543,7 +543,7 @@ template class detail::DominanceInfoBase</*IsPostDom=*/false>;
 //===----------------------------------------------------------------------===//
 
 /// Return true if operation A properly dominates operation B.
-bool DominanceInfo::properlyDominates(Operation *a, Operation *b) const {
+bool DominanceInfo::properlyDominatesOO(Operation *a, Operation *b) const {
   assert(false && "unimplemented");
 
   Block *aBlock = a->getBlock(), *bBlock = b->getBlock();
@@ -571,7 +571,7 @@ bool DominanceInfo::properlyDominates(Operation *a, Operation *b) const {
     // Since we already know that aBlock != bBlock, here bAncestor != b.
     // a and bAncestor are in the same block; check if 'a' dominates
     // bAncestor.
-    return dominates(a, bAncestor);
+    return dominatesOO(a, bAncestor);
   }
 
   // If the blocks are different, check if a's block dominates b's.
@@ -600,6 +600,7 @@ bool DominanceInfo::properlyDominates(Value a, Operation *b) const {
 
 
   assert(a.isa<BlockArgument>() && "value must be op or block argument");
+  // assert(false && "invoking block argument check!");
   // block arguments properly dominate all operations in their own block, so
   // we use a dominates check here, not a properlyDominates check.
   return dominates(a.cast<BlockArgument>().getOwner(), b->getBlock());
@@ -622,7 +623,7 @@ bool DominanceInfo::properlyDominates(Value a, Operation *b) const {
       if (aOp->getParentRegion() != b->getParentRegion() && aOp->isAncestor(b))
         return false;
     }
-    return properlyDominates(aOp, b);
+    return properlyDominatesOO(aOp, b);
   }
 
   // block arguments properly dominate all operations in their own block, so

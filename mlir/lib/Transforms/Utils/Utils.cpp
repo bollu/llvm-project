@@ -245,7 +245,7 @@ LogicalResult mlir::replaceAllMemRefUsesWith(
   DenseSet<Operation *> opsToReplace;
   for (auto *op : oldMemRef.getUsers()) {
     // Skip this use if it's not dominated by domInstFilter.
-    if (domInstFilter && !domInfo->dominates(domInstFilter, op))
+    if (domInstFilter && !domInfo->dominatesOO(domInstFilter, op))
       continue;
 
     // Skip this use if it's not post-dominated by postDomInstFilter.
