@@ -30,6 +30,7 @@
 #include "mlir/IR/Dominance.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/RegionKindInterface.h"
+#include "mlir/Support/LogicalResult.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/Support/FormatVariadic.h"
 #include "llvm/Support/PrettyStackTrace.h"
@@ -273,6 +274,9 @@ static void attachNoteForOperandDefinition(InFlightDiagnostic &diag,
 }
 
 LogicalResult OperationVerifier::verifyDominance(Region &region) {
+  // llvm::errs() << "HACK: " << __PRETTY_FUNCTION__ << " skipping dominance check!\n";
+  // return success();
+
   // Verify the dominance of each of the held operations.
   for (Block &block : region) {
     // Dominance is only meaningful inside reachable blocks.
@@ -289,14 +293,19 @@ LogicalResult OperationVerifier::verifyDominance(Region &region) {
                                     << operandNo
                                     << " does not dominate this use";
           attachNoteForOperandDefinition(diag, op, operand);
+
+        llvm::errs() << "\n===domowner==\n" << *region.getParentOp() << "\n";
           return failure();
         }
     // Recursively verify dominance within each operation in the
     // block, even if the block itself is not reachable, or we are in
     // a region which doesn't respect dominance.
-    for (Operation &op : block)
-      if (failed(verifyDominanceOfContainedRegions(op)))
+    for (Operation &op : block) {
+      if (failed(verifyDominanceOfContainedRegions(op))) {
+        llvm::errs() << "\n===domowner==\n" << *region.getParentOp() << "\n";
         return failure();
+      }
+    }
   }
   return success();
 }

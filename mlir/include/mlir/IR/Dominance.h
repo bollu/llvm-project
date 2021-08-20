@@ -14,6 +14,8 @@
 #include "mlir/Support/LLVM.h"
 #include "llvm/ADT/GraphTraits.h"
 #include "llvm/Support/GenericDomTree.h"
+#include "llvm/Support/raw_ostream.h"
+#include <memory>
 
 extern template class llvm::DominatorTreeBase<mlir::Block, false>;
 extern template class llvm::DominatorTreeBase<mlir::Block, true>;
@@ -21,11 +23,13 @@ extern template class llvm::DominatorTreeBase<mlir::Block, true>;
 struct DTNode; // forward declare
 
 struct DT {
-  DT(DTNode *entry) : entry(entry){};
+  DT() {}
 
-  DTNode *entry;
+  DTNode *entry = nullptr;
   using NodesT = llvm::SmallVector<DTNode *, 4>;
   NodesT Nodes;
+
+  void debug_print(llvm::raw_ostream &o) const;
 };
 
 // look at RegionGraphTraits.h
@@ -86,6 +90,9 @@ struct DTNode {
 
   DTNode(const DTNode &other) = default;
   // explicit DTNode() = default;
+
+  void print(llvm::raw_ostream &os);
+
 private:
   DTNode(DT *parent) : parent(parent) {}
   DT *parent = nullptr;
@@ -213,6 +220,7 @@ protected:
   DenseMap<Region *, SmallVector<Region *, 4>> domParent2Children;
   DenseMap<Region *, Region *> domChild2Parent;
 
+  std::unique_ptr<base> dominanceInfo;
   DT *dt;
   DenseMap<Block *, std::pair<DTNode *, DTNode *>> Block2EntryExit;
   DenseMap<Operation *, DTNode *> Op2Node;
