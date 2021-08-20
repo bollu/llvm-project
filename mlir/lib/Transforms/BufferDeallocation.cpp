@@ -229,7 +229,7 @@ private:
         // generic value. We have to free the current alias if it is either
         // defined in a non-dominated block or it is defined in the same block
         // but the current value is not dominated by the source value.
-        if (!dominators.dominates(definingBlock, parentBlock) ||
+        if (!dominators.dominatesBB(definingBlock, parentBlock) ||
             (definingBlock == parentBlock && value.isa<BlockArgument>())) {
           toProcess.emplace_back(value, parentBlock);
           valuesToFree.insert(value);

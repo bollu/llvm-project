@@ -442,7 +442,7 @@ DominanceInfoNode *DominanceInfoBase<IsPostDom>::getNode(Block *a) {
 
 /// Return true if the specified block A properly dominates block B.
 template <bool IsPostDom>
-bool DominanceInfoBase<IsPostDom>::properlyDominates(Block *a, Block *b) const {
+bool DominanceInfoBase<IsPostDom>::properlyDominatesBB(Block *a, Block *b) const {
   // If either a or b are null, then conservatively return false.
   if (!a || !b) {
     return false;
@@ -453,14 +453,17 @@ bool DominanceInfoBase<IsPostDom>::properlyDominates(Block *a, Block *b) const {
   assert(ita != Block2EntryExit.end());
   assert(itb != Block2EntryExit.end());
 
-  // check if entry of A properly dominates entry of B.
-  Operation *fn = a->getParentOp()->getParentOfType<FuncOp>();
-  if (fn == nullptr) { return false;}
+  assert(ita->second.first->Info == itb->second.first->Info && "both must have same dom info data structure");
+  base* dominanceInfo = (base*)ita->second.first->Info;
 
-  llvm::errs() << "parent: " << fn << "\n";
-  auto domit = func2Dominance.find(fn);
-  assert(domit != func2Dominance.end());
-  return domit->second->properlyDominates(ita->second.first, itb->second.first);
+  // check if entry of A properly dominates entry of B.
+  // Operation *fn = a->getParentOp()->getParentOfType<FuncOp>();
+  // if (fn == nullptr) { return false;}
+
+  // llvm::errs() << "parent: " << fn << "\n";
+  // auto domit = func2Dominance.find(fn);
+  // assert(domit != func2Dominance.end());
+  return dominanceInfo->properlyDominates(ita->second.first, itb->second.first);
 
   // return dominanceInfo->properlyDominates(ita->second.first,
   // itb->second.first);
@@ -575,7 +578,7 @@ bool DominanceInfo::properlyDominatesOO(Operation *a, Operation *b) const {
   }
 
   // If the blocks are different, check if a's block dominates b's.
-  return properlyDominates(aBlock, bBlock);
+  return properlyDominatesBB(aBlock, bBlock);
 }
 
 /// Return true if value A properly dominates operation B.
@@ -603,7 +606,7 @@ bool DominanceInfo::properlyDominates(Value a, Operation *b) const {
   // assert(false && "invoking block argument check!");
   // block arguments properly dominate all operations in their own block, so
   // we use a dominates check here, not a properlyDominates check.
-  return dominates(a.cast<BlockArgument>().getOwner(), b->getBlock());
+  return dominatesBB(a.cast<BlockArgument>().getOwner(), b->getBlock());
 
 
 
@@ -628,7 +631,7 @@ bool DominanceInfo::properlyDominates(Value a, Operation *b) const {
 
   // block arguments properly dominate all operations in their own block, so
   // we use a dominates check here, not a properlyDominates check.
-  return dominates(a.cast<BlockArgument>().getOwner(), b->getBlock());
+  return dominatesBB(a.cast<BlockArgument>().getOwner(), b->getBlock());
 }
 
 void DominanceInfo::updateDFSNumbers() {
@@ -673,5 +676,5 @@ bool PostDominanceInfo::properlyPostDominates(Operation *a, Operation *b) {
     return postDominates(a, bAncestor);
 
   // If the blocks are different, check if a's block post dominates b's.
-  return properlyDominates(aBlock, bBlock);
+  return properlyDominatesBB(aBlock, bBlock);
 }

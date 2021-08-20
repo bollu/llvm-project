@@ -21,7 +21,7 @@ using namespace mlir;
 /// dominance or post-dominance.
 static bool dominatesOrPostDominates(DominanceInfo &dominanceInfo, Block *a,
                                      Block *b) {
-  return dominanceInfo.dominates(a, b);
+  return dominanceInfo.dominatesBB(a, b);
 }
 
 static bool dominatesOrPostDominates(PostDominanceInfo &dominanceInfo, Block *a,

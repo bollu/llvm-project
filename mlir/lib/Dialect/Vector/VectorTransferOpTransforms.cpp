@@ -91,7 +91,7 @@ bool TransferOptimization::isReachable(Operation *start, Operation *dest) {
     Block *bb = worklist.pop_back_val();
     if (!visited.insert(bb).second)
       continue;
-    if (dominators.dominates(bb, destBlock))
+    if (dominators.dominatesBB(bb, destBlock))
       return true;
     worklist.append(bb->succ_begin(), bb->succ_end());
   }

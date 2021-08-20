@@ -288,7 +288,7 @@ static bool isStructurallyFusableProducer(LinalgOp producer, Value consumedView,
   }
   // Only fuse when the producer block dominates.
   DominanceInfo dom(producer.getOperation());
-  if (!dom.dominates(producer->getBlock(), consumer->getBlock())) {
+  if (!dom.dominatesBB(producer->getBlock(), consumer->getBlock())) {
     LLVM_DEBUG(
         llvm::dbgs()
         << "\nNot structurally fusable (producer block does not dominate)");

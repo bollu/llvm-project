@@ -148,7 +148,7 @@ public:
       // buffer.
       for (Value depValue : operands) {
         Block *depBlock = depValue.getParentBlock();
-        if (!dependencyBlock || dominators.dominates(dependencyBlock, depBlock))
+        if (!dependencyBlock || dominators.dominatesBB(dependencyBlock, depBlock))
           dependencyBlock = depBlock;
       }
 
@@ -184,7 +184,7 @@ private:
     while ((parentOp = currentBlock->getParentOp()) &&
            (parentBlock = parentOp->getBlock()) &&
            (!upperBound ||
-            dominators.properlyDominates(upperBound, currentBlock))) {
+            dominators.properlyDominatesBB(upperBound, currentBlock))) {
       // Try to find an immediate dominator and check whether the parent block
       // is above the immediate dominator (if any).
       DominanceInfoNode *idom = dominators.getNode(currentBlock)->getIDom();
@@ -242,7 +242,7 @@ struct BufferAllocationHoistingState : BufferAllocationHoistingStateBase {
 
     // Find the "lower" block of the dominator and the dependency block to
     // ensure that we do not move allocations above this block.
-    return dominators->properlyDominates(dominatorBlock, dependencyBlock)
+    return dominators->properlyDominatesBB(dominatorBlock, dependencyBlock)
                ? dependencyBlock
                : dominatorBlock;
   }
@@ -281,7 +281,7 @@ struct BufferAllocationLoopHoistingState : BufferAllocationHoistingStateBase {
   /// allocation is passed via a back edge.
   bool isLegalPlacement(Operation *op) {
     return BufferPlacementTransformationBase::isLoop(op) &&
-           !dominators->dominates(aliasDominatorBlock, op->getBlock());
+           !dominators->dominatesBB(aliasDominatorBlock, op->getBlock());
   }
 
   /// Does not change the internal placement block, as we want to move

@@ -211,7 +211,7 @@ protected:
   using super = DominanceInfoBase<IsPostDom>;
 
   /// Return true if the specified block A properly dominates block B.
-  bool properlyDominates(Block *a, Block *b) const;
+  bool properlyDominatesBB(Block *a, Block *b) const;
 
   /// Return true if the specified block is reachable from the entry
   /// block of its region.
@@ -276,8 +276,8 @@ public:
 
   /// Return true if the specified block A dominates block B, i.e. if block A
   /// and block B are the same block or block A properly dominates block B.
-  bool dominates(Block *a, Block *b) const {
-    return a == b || properlyDominates(a, b);
+  bool dominatesBB(Block *a, Block *b) const {
+    return a == b || properlyDominatesBB(a, b);
   }
 
   /// Return true if the specified block A properly dominates block B, i.e.: if
@@ -286,8 +286,8 @@ public:
   /// block in that kind of region.  In an SSACFG region, block A dominates
   /// block B if all control flow paths from the entry block to block B flow
   /// through block A. In a Graph region, all blocks dominate all other blocks.
-  bool properlyDominates(Block *a, Block *b) const {
-    return super::properlyDominates(a, b);
+  bool properlyDominatesBB(Block *a, Block *b) const {
+    return super::properlyDominatesBB(a, b);
   }
 
   /// Update the internal DFS numbers for the dominance nodes.
@@ -315,7 +315,7 @@ public:
 
   /// Return true if the specified block A properly postdominates block B.
   bool properlyPostDominates(Block *a, Block *b) {
-    return super::properlyDominates(a, b);
+    return super::properlyDominatesBB(a, b);
   }
 
   /// Return true if the specified block A postdominates block B.
