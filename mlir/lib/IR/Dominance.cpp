@@ -588,6 +588,13 @@ bool DominanceInfo::properlyDominates(Value a, Operation *b) const {
 
     assert(ita->second->Info == itb->second->Info && "both must have same dom info data structure");
     base* dominanceInfo = (base*)ita->second->Info;
+
+
+    if(ita->second == itb->second) {
+      // these are next to each other in the same BB / are not interleaved with a region instruction.
+      return aOp != b && aOp->isBeforeInBlock(b);
+    }
+    
     return aOp != b &&  dominanceInfo->dominates(ita->second, itb->second);
   }
 
