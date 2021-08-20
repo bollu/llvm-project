@@ -15,6 +15,7 @@
 #include "mlir/Dialect/Rgn/RgnDialect.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Block.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/Region.h"
@@ -235,14 +236,14 @@ void processRegion(
 template <bool IsPostDom>
 void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
 
-  ModuleOp module = dyn_cast<ModuleOp>(op);
-  assert(module);
+  // ModuleOp module = dyn_cast<ModuleOp>(op);
+  assert(isa<ModuleOp>(op) || isa<FuncOp>(op));
 
   this->R2EntryExit.clear();
   this->Block2EntryExit.clear();
   this->Op2Node.clear();
 
-  module.walk([&](mlir::FuncOp f) {
+  op->walk([&](mlir::FuncOp f) {
     DT *dt = new DT;
     auto dominanceInfo = std::make_unique<base>();
 
