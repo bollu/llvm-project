@@ -17,6 +17,7 @@
 #include "llvm/Support/GenericDomTree.h"
 #include "llvm/Support/raw_ostream.h"
 #include <memory>
+#include <string>
 
 extern template class llvm::DominatorTreeBase<mlir::Block, false>;
 extern template class llvm::DominatorTreeBase<mlir::Block, true>;
@@ -37,6 +38,7 @@ struct DT {
 
 struct DTNode {
   void *Info = nullptr; // pointer to dominance info data structure.
+  int DebugIndex = -42; // index used for debugging.
 
   enum class Kind {
     DTBlock,
@@ -116,7 +118,13 @@ struct GraphTraits<DTNode *> {
     return node->succ_begin();
   }
   static ChildIteratorType child_end(NodeRef node) { return node->succ_end(); }
+
+  static std::string getNodeIdentifierLabel(const DTNode *Node,
+                                            const DT *Graph) {
+    return std::to_string(Node->DebugIndex);
+  }
 };
+
 } // namespace llvm
 
 namespace llvm {
@@ -144,6 +152,11 @@ struct GraphTraits<Inverse<DTNode *>> {
   }
   static inline ChildIteratorType child_end(NodeRef node) {
     return node->pred_end();
+  }
+
+  static std::string getNodeIdentifierLabel(const DTNode *Node,
+                                            const DT *Graph) {
+    return std::to_string(Node->DebugIndex);
   }
 };
 }; // namespace llvm
@@ -224,7 +237,7 @@ protected:
   DenseMap<Region *, SmallVector<Region *, 4>> domParent2Children;
   DenseMap<Region *, Region *> domChild2Parent;
 
-  DenseMap<Operation*, std::unique_ptr<base>> func2Dominance;
+  DenseMap<Operation *, std::unique_ptr<base>> func2Dominance;
 
   // std::unique_ptr<base> dominanceInfo;
   // DT *dt;

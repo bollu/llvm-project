@@ -48,6 +48,11 @@ static bool hasSSADominance(Operation *op, unsigned index) {
          (!kindInterface || kindInterface.hasSSADominance(index));
 }
 
+void debug_prompt() {
+  llvm::errs() << "\n";
+  getchar();
+  llvm::errs() << "\r";
+}
 //===----------------------------------------------------------------------===//
 // DT
 //===----------------------------------------------------------------------===//
@@ -214,6 +219,9 @@ void processRegion(
       if (Op.hasTrait<OpTrait::IsTerminator>() &&
           !Op.hasTrait<OpTrait::ReturnLike>()) {
         for (BlockOperand &NextB : Op.getBlockOperands()) {
+          llvm::errs() << "creating next block links for |" << Op
+                       << "| to: " << NextB.get() << "\n";
+          getchar();
           DTNode *ThisExit = Block2Node[&B].second;
           DTNode *NextEntry = Block2Node[NextB.get()].first;
           ThisExit->addSuccessor(NextEntry);
@@ -245,8 +253,10 @@ void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
 
     for (int i = 0; i < dt->Nodes.size(); ++i) {
       dt->Nodes[i]->Info = dominanceInfo.get();
+      dt->Nodes[i]->DebugIndex = i;
+
     }
-    
+
     for (int i = 0; i < dt->Nodes.size(); ++i) {
       for (int j = 0; j < dt->Nodes.size(); ++j) {
         llvm::errs() << "dominates(" << i << " " << j
@@ -275,6 +285,13 @@ void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
                      << "\n";
       }
     }
+
+    int FD;
+    llvm::sys::fs::openFileForWrite(
+        "/home/bollu/temp/" + f.getName() + "-graph.dot", FD);
+    llvm::raw_fd_ostream O(FD, /*shouldClose=*/true);
+    llvm::WriteGraph(O, dt);
+
     func2Dominance.insert({f.getOperation(), std::move(dominanceInfo)});
   });
 
@@ -442,19 +459,33 @@ DominanceInfoNode *DominanceInfoBase<IsPostDom>::getNode(Block *a) {
 
 /// Return true if the specified block A properly dominates block B.
 template <bool IsPostDom>
-bool DominanceInfoBase<IsPostDom>::properlyDominatesBB(Block *a, Block *b) const {
+bool DominanceInfoBase<IsPostDom>::properlyDominatesBB(Block *a,
+                                                       Block *b) const {
+  llvm::errs() << __PRETTY_FUNCTION__ << "\n";
+
   // If either a or b are null, then conservatively return false.
   if (!a || !b) {
     return false;
   }
 
+
   auto ita = this->Block2EntryExit.find(a);
-  auto itb = this->Block2EntryExit.find(a);
+  auto itb = this->Block2EntryExit.find(b);
   assert(ita != Block2EntryExit.end());
   assert(itb != Block2EntryExit.end());
 
-  assert(ita->second.first->Info == itb->second.first->Info && "both must have same dom info data structure");
-  base* dominanceInfo = (base*)ita->second.first->Info;
+  llvm::errs() << "\n-a(" << ita->second.first->DebugIndex << ")\n";
+  a->print(llvm::errs());
+  llvm::errs() << "\n-b(" << itb->second.first->DebugIndex << ")\n";
+  b->print(llvm::errs());
+
+  if (a != b) {
+    assert(ita->second.first != itb->second.first);
+  }
+
+  assert(ita->second.first->Info == itb->second.first->Info &&
+         "both must have same dom info data structure");
+  base *dominanceInfo = (base *)ita->second.first->Info;
 
   // check if entry of A properly dominates entry of B.
   // Operation *fn = a->getParentOp()->getParentOfType<FuncOp>();
@@ -463,13 +494,13 @@ bool DominanceInfoBase<IsPostDom>::properlyDominatesBB(Block *a, Block *b) const
   // llvm::errs() << "parent: " << fn << "\n";
   // auto domit = func2Dominance.find(fn);
   // assert(domit != func2Dominance.end());
-  return dominanceInfo->properlyDominates(ita->second.first, itb->second.first);
+  // check if my exit dominates your entry.
+  return dominanceInfo->properlyDominates(ita->second.second, itb->second.first);
 
   // return dominanceInfo->properlyDominates(ita->second.first,
   // itb->second.first);
 
   assert(false && "unimplemented");
-
 
   if (a->getParent() == b->getParent()) {
     // A block dominates itself but does not properly dominate itself.
@@ -530,11 +561,27 @@ bool DominanceInfoBase<IsPostDom>::properlyDominatesBB(Block *a, Block *b) const
 /// region.
 template <bool IsPostDom>
 bool DominanceInfoBase<IsPostDom>::isReachableFromEntry(Block *a) const {
-  Region *regionA = a->getParent();
-  auto baseInfoIt = dominanceInfos.find(regionA);
-  if (baseInfoIt == dominanceInfos.end())
-    return true;
-  // return
+  llvm::errs() << __PRETTY_FUNCTION__ << "\n";
+  llvm::errs() << "-a: " << a << "\n";
+  llvm::errs() << "-a: "; a->print(llvm::errs()); llvm::errs() << "\n";
+
+  // assert(false && "unreachable");
+  auto it = this->Block2EntryExit.find(a);
+  // TODO: why can there a BB we don't understand? I don't get it, but OK.
+  // Sid: this condition was stolen from previous code.
+  if (it == this->Block2EntryExit.end()) { return true; }
+
+  assert(it != this->Block2EntryExit.end());
+  DTNode *Entry = it->second.first;
+  base *dominanceInfo = (base *)Entry->Info;
+  return dominanceInfo->isReachableFromEntry(Entry);
+  // Region *regionA = a->getParent();
+  // auto baseInfoIt = dominanceInfos.find(regionA);
+  // if (baseInfoIt == dominanceInfos.end()) {
+  //   return true;
+  // }
+
+  // // return
   // baseInfoIt->second->isReachableFromEntry(this->Block2EntryExit[a].first);
 }
 
@@ -589,26 +636,24 @@ bool DominanceInfo::properlyDominates(Value a, Operation *b) const {
     assert(ita != Op2Node.end());
     assert(itb != Op2Node.end());
 
-    assert(ita->second->Info == itb->second->Info && "both must have same dom info data structure");
-    base* dominanceInfo = (base*)ita->second->Info;
+    assert(ita->second->Info == itb->second->Info &&
+           "both must have same dom info data structure");
+    base *dominanceInfo = (base *)ita->second->Info;
 
-
-    if(ita->second == itb->second) {
-      // these are next to each other in the same BB / are not interleaved with a region instruction.
+    if (ita->second == itb->second) {
+      // these are next to each other in the same BB / are not interleaved with
+      // a region instruction.
       return aOp != b && aOp->isBeforeInBlock(b);
     }
-    
-    return aOp != b &&  dominanceInfo->dominates(ita->second, itb->second);
-  }
 
+    return aOp != b && dominanceInfo->dominates(ita->second, itb->second);
+  }
 
   assert(a.isa<BlockArgument>() && "value must be op or block argument");
   // assert(false && "invoking block argument check!");
   // block arguments properly dominate all operations in their own block, so
   // we use a dominates check here, not a properlyDominates check.
   return dominatesBB(a.cast<BlockArgument>().getOwner(), b->getBlock());
-
-
 
   assert(false && "unimplemented");
 
@@ -635,7 +680,7 @@ bool DominanceInfo::properlyDominates(Value a, Operation *b) const {
 }
 
 void DominanceInfo::updateDFSNumbers() {
-    assert(false && "unimplemented");
+  assert(false && "unimplemented");
 
   for (auto &iter : dominanceInfos)
     iter.second->updateDFSNumbers();
@@ -647,7 +692,7 @@ void DominanceInfo::updateDFSNumbers() {
 
 /// Returns true if statement 'a' properly postdominates statement b.
 bool PostDominanceInfo::properlyPostDominates(Operation *a, Operation *b) {
-    assert(false && "unimplemented");
+  assert(false && "unimplemented");
 
   auto *aBlock = a->getBlock(), *bBlock = b->getBlock();
   auto *aRegion = a->getParentRegion();

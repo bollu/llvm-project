@@ -290,8 +290,9 @@ LogicalResult OperationVerifier::verifyDominance(Region &region) {
             continue;
 
           InFlightDiagnostic diag = op.emitError("operand #")
-                                    << operandNo
+                                    << operandNo << " [0-indexed]"
                                     << " does not dominate this use";
+
           attachNoteForOperandDefinition(diag, op, operand);
 
         llvm::errs() << "\n===domowner==\n" << *region.getParentOp() << "\n";
