@@ -36,6 +36,8 @@ struct DT {
 // look at RegionGraphTraits.h
 
 struct DTNode {
+  void *Info = nullptr; // pointer to dominance info data structure.
+
   enum class Kind {
     DTBlock,
     DTExit,
@@ -172,6 +174,7 @@ class Operation;
 namespace detail {
 template <bool IsPostDom>
 class DominanceInfoBase {
+protected:
   using base = llvm::DominatorTreeBase<DTNode, IsPostDom>;
 
 public:

@@ -236,12 +236,17 @@ void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
 
   module.walk([&](mlir::FuncOp f) {
     DT *dt = new DT;
+    auto dominanceInfo = std::make_unique<base>();
+
     processOp(dt, this->R2EntryExit, this->Block2EntryExit, this->Op2Node, f);
     dt->entry = this->R2EntryExit[&f.getRegion()].first;
-    auto dominanceInfo = std::make_unique<base>();
     dominanceInfo->recalculate(*dt);
     llvm::errs() << "\n\n@@@@processing function.. |" << f << "\n";
 
+    for (int i = 0; i < dt->Nodes.size(); ++i) {
+      dt->Nodes[i]->Info = dominanceInfo.get();
+    }
+    
     for (int i = 0; i < dt->Nodes.size(); ++i) {
       for (int j = 0; j < dt->Nodes.size(); ++j) {
         llvm::errs() << "dominates(" << i << " " << j
@@ -438,7 +443,10 @@ DominanceInfoNode *DominanceInfoBase<IsPostDom>::getNode(Block *a) {
 /// Return true if the specified block A properly dominates block B.
 template <bool IsPostDom>
 bool DominanceInfoBase<IsPostDom>::properlyDominates(Block *a, Block *b) const {
-  // assert(this->dt);
+  // If either a or b are null, then conservatively return false.
+  if (!a || !b) {
+    return false;
+  }
 
   auto ita = this->Block2EntryExit.find(a);
   auto itb = this->Block2EntryExit.find(a);
@@ -447,6 +455,9 @@ bool DominanceInfoBase<IsPostDom>::properlyDominates(Block *a, Block *b) const {
 
   // check if entry of A properly dominates entry of B.
   Operation *fn = a->getParentOp()->getParentOfType<FuncOp>();
+  if (fn == nullptr) { return false;}
+
+  llvm::errs() << "parent: " << fn << "\n";
   auto domit = func2Dominance.find(fn);
   assert(domit != func2Dominance.end());
   return domit->second->properlyDominates(ita->second.first, itb->second.first);
@@ -456,9 +467,6 @@ bool DominanceInfoBase<IsPostDom>::properlyDominates(Block *a, Block *b) const {
 
   assert(false && "unimplemented");
 
-  // If either a or b are null, then conservatively return false.
-  if (!a || !b)
-    return false;
 
   if (a->getParent() == b->getParent()) {
     // A block dominates itself but does not properly dominate itself.
@@ -536,6 +544,8 @@ template class detail::DominanceInfoBase</*IsPostDom=*/false>;
 
 /// Return true if operation A properly dominates operation B.
 bool DominanceInfo::properlyDominates(Operation *a, Operation *b) const {
+  assert(false && "unimplemented");
+
   Block *aBlock = a->getBlock(), *bBlock = b->getBlock();
   Region *aRegion = a->getParentRegion();
   unsigned aRegionNum = aRegion->getRegionNumber();
@@ -570,6 +580,27 @@ bool DominanceInfo::properlyDominates(Operation *a, Operation *b) const {
 
 /// Return true if value A properly dominates operation B.
 bool DominanceInfo::properlyDominates(Value a, Operation *b) const {
+  if (Operation *aOp = a.getDefiningOp()) {
+    auto ita = this->Op2Node.find(aOp);
+    auto itb = this->Op2Node.find(b);
+    assert(ita != Op2Node.end());
+    assert(itb != Op2Node.end());
+
+    assert(ita->second->Info == itb->second->Info && "both must have same dom info data structure");
+    base* dominanceInfo = (base*)ita->second->Info;
+    return aOp != b &&  dominanceInfo->dominates(ita->second, itb->second);
+  }
+
+
+  assert(a.isa<BlockArgument>() && "value must be op or block argument");
+  // block arguments properly dominate all operations in their own block, so
+  // we use a dominates check here, not a properlyDominates check.
+  return dominates(a.cast<BlockArgument>().getOwner(), b->getBlock());
+
+
+
+  assert(false && "unimplemented");
+
   if (auto *aOp = a.getDefiningOp()) {
     // Dominance changes based on the region type.
     auto *aRegion = aOp->getParentRegion();
@@ -593,6 +624,8 @@ bool DominanceInfo::properlyDominates(Value a, Operation *b) const {
 }
 
 void DominanceInfo::updateDFSNumbers() {
+    assert(false && "unimplemented");
+
   for (auto &iter : dominanceInfos)
     iter.second->updateDFSNumbers();
 }
@@ -603,6 +636,8 @@ void DominanceInfo::updateDFSNumbers() {
 
 /// Returns true if statement 'a' properly postdominates statement b.
 bool PostDominanceInfo::properlyPostDominates(Operation *a, Operation *b) {
+    assert(false && "unimplemented");
+
   auto *aBlock = a->getBlock(), *bBlock = b->getBlock();
   auto *aRegion = a->getParentRegion();
   unsigned aRegionNum = aRegion->getRegionNumber();
