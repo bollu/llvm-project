@@ -29,6 +29,7 @@
 #include "llvm/IR/Dominators.h"
 #include "llvm/Support/GenericDomTreeConstruction.h"
 #include "llvm/Support/GraphWriter.h"
+#include "llvm/Support/YAMLTraits.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 
@@ -71,20 +72,18 @@ void DTNode::print(llvm::raw_ostream &os) {
     os << this << " ";
     os << "bb[" << b << "\n";
     b->print(os);
-    os  << "]";
+    os << "]";
     break;
   case Kind::DTExit:
     os << this << " ";
-    os << "exit-region[" << "\n"
-       << *r->getParentOp()
-       << "]";
+    os << "exit-region["
+       << "\n"
+       << *r->getParentOp() << "]";
     break;
 
   case Kind::DTOp:
     os << this << " ";
-    os << "op[\n" 
-       << *op 
-       << "]";
+    os << "op[\n" << *op << "]";
     break;
   }
 
@@ -235,11 +234,51 @@ void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
   this->Block2EntryExit.clear();
   this->Op2Node.clear();
 
-  this->dt = new DT();
+  module.walk([&](mlir::FuncOp f) {
+    DT *dt = new DT;
+    processOp(dt, this->R2EntryExit, this->Block2EntryExit, this->Op2Node, f);
+    dt->entry = this->R2EntryExit[&f.getRegion()].first;
+    auto dominanceInfo = std::make_unique<base>();
+    dominanceInfo->recalculate(*dt);
+    llvm::errs() << "\n\n@@@@processing function.. |" << f << "\n";
 
-  processOp(this->dt, this->R2EntryExit, this->Block2EntryExit, this->Op2Node,
-            op);
-  this->dt->entry = this->R2EntryExit[&module.getRegion()].first;
+    for (int i = 0; i < dt->Nodes.size(); ++i) {
+      for (int j = 0; j < dt->Nodes.size(); ++j) {
+        llvm::errs() << "dominates(" << i << " " << j
+                     << ", isPostDom:" << IsPostDom << ") = "
+                     << dominanceInfo->dominates(dt->Nodes[i], dt->Nodes[j])
+                     << "\n";
+      }
+    }
+
+    for (int i = 0; i < dt->Nodes.size(); ++i) {
+      llvm::errs() << "\n##" << i << (dt->entry == dt->Nodes[i] ? " ENTRY" : "")
+                   << ":\n";
+      dt->Nodes[i]->print(llvm::errs());
+      llvm::errs() << "\n==\n";
+    }
+
+    std::map<DTNode *, int> node2ix;
+    for (int i = 0; i < dt->Nodes.size(); ++i) {
+      node2ix[dt->Nodes[i]] = i;
+    }
+
+    llvm::errs() << "edges:\n";
+    for (int i = 0; i < dt->Nodes.size(); ++i) {
+      for (int j = 0; j < dt->Nodes[i]->successors.size(); ++j) {
+        llvm::errs() << i << " -> " << node2ix[dt->Nodes[i]->successors[j]]
+                     << "\n";
+      }
+    }
+    func2Dominance.insert({f.getOperation(), std::move(dominanceInfo)});
+  });
+
+  // this->dt = new DT();
+
+  // processOp(this->dt, this->R2EntryExit, this->Block2EntryExit,
+  // this->Op2Node,
+  //           op);
+  // this->dt->entry = this->R2EntryExit[&module.getRegion()].first;
 
   // op->walk([&](Operation *op) {
   //   const int numRegions = op->getNumRegions();
@@ -250,50 +289,16 @@ void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
   // });
 
   // std::unique_ptr<llvm::DominatorTreeBase<DTNode, IsPostDom>> opDominance =
-  this->dominanceInfo = std::make_unique<base>();
+  // this->dominanceInfo = std::make_unique<base>();
 
-  int FD;
-  llvm::sys::fs::openFileForWrite("/home/bollu/temp/graph.dot", FD);
-  llvm::raw_fd_ostream O(FD, /*shouldClose=*/ true);
-  llvm::WriteGraph(O, this->dt);
+  // int FD;
+  // llvm::sys::fs::openFileForWrite("/home/bollu/temp/graph.dot", FD);
+  // llvm::raw_fd_ostream O(FD, /*shouldClose=*/ true);
+  // llvm::WriteGraph(O, this->dt);
 
-  dominanceInfo->recalculate(*this->dt);
-  
+  // dominanceInfo->recalculate(*this->dt);
+
   // disconnected nodes dominate each other?!
-
-  for(int i = 0; i < dt->Nodes.size(); ++i) {
-    for(int j = 0; j < dt->Nodes.size(); ++j) {
-      llvm::errs() << "dominates(" << i << " " << j << ", isPostDom:" << IsPostDom << ") = " << 
-      dominanceInfo->dominates(dt->Nodes[i], dt->Nodes[j])  << "\n";
-      // llvm::errs() << "\n##" << i << ":\n";
-      // dt->Nodes[i]->print(llvm::errs());
-      // llvm::errs() << "\n##" << j << ":\n";
-      // dt->Nodes[j]->print(llvm::errs());
-      // llvm::errs() << "\n--\n";
-    }
-  }
-
-
-  for(int i = 0; i < dt->Nodes.size(); ++i) {
-      llvm::errs() << "\n##" << i << (dt->entry == dt->Nodes[i] ? " ENTRY" : "") << ":\n";
-      dt->Nodes[i]->print(llvm::errs());
-      llvm::errs() << "\n==\n";
-  }
-
-
-  std::map<DTNode *, int> node2ix;
-  for(int i = 0; i < dt->Nodes.size(); ++i) {
-    node2ix[dt->Nodes[i]] = i;
-  }
-
-
-  llvm::errs() << "edges:\n";
-  for(int i = 0; i < dt->Nodes.size(); ++i) {
-    for(int j = 0; j < dt->Nodes[i]->successors.size(); ++j) {
-      llvm::errs() << i << " -> " << node2ix[dt->Nodes[i]->successors[j]] << "\n"; 
-    }
-  }
-
 
   // DTNode *Entry = R2EntryExit[op].first;
   // DTNode *Entry;
@@ -433,7 +438,7 @@ DominanceInfoNode *DominanceInfoBase<IsPostDom>::getNode(Block *a) {
 /// Return true if the specified block A properly dominates block B.
 template <bool IsPostDom>
 bool DominanceInfoBase<IsPostDom>::properlyDominates(Block *a, Block *b) const {
-  assert(this->dt);
+  // assert(this->dt);
 
   auto ita = this->Block2EntryExit.find(a);
   auto itb = this->Block2EntryExit.find(a);
@@ -441,7 +446,13 @@ bool DominanceInfoBase<IsPostDom>::properlyDominates(Block *a, Block *b) const {
   assert(itb != Block2EntryExit.end());
 
   // check if entry of A properly dominates entry of B.
-  return dominanceInfo->properlyDominates(ita->second.first, itb->second.first);
+  Operation *fn = a->getParentOp()->getParentOfType<FuncOp>();
+  auto domit = func2Dominance.find(fn);
+  assert(domit != func2Dominance.end());
+  return domit->second->properlyDominates(ita->second.first, itb->second.first);
+
+  // return dominanceInfo->properlyDominates(ita->second.first,
+  // itb->second.first);
 
   assert(false && "unimplemented");
 

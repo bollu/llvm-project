@@ -9,6 +9,7 @@
 #ifndef MLIR_IR_DOMINANCE_H
 #define MLIR_IR_DOMINANCE_H
 
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/RegionGraphTraits.h"
 #include "mlir/IR/Value.h"
 #include "mlir/Support/LLVM.h"
@@ -220,8 +221,10 @@ protected:
   DenseMap<Region *, SmallVector<Region *, 4>> domParent2Children;
   DenseMap<Region *, Region *> domChild2Parent;
 
-  std::unique_ptr<base> dominanceInfo;
-  DT *dt;
+  DenseMap<Operation*, std::unique_ptr<base>> func2Dominance;
+
+  // std::unique_ptr<base> dominanceInfo;
+  // DT *dt;
   DenseMap<Block *, std::pair<DTNode *, DTNode *>> Block2EntryExit;
   DenseMap<Operation *, DTNode *> Op2Node;
   DenseMap<Region *, std::pair<DTNode *, DTNode *>> R2EntryExit;
