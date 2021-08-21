@@ -108,19 +108,19 @@ void DTNode::print(llvm::raw_ostream &os) {
 
 bool isRunRegionOp(Operation *op) { return false; }
 
-void processRegion(
+void processRegionDom(
     DT *dt, DenseMap<Region *, std::pair<DTNode *, DTNode *>> &R2EntryExit,
     DenseMap<mlir::Block *, std::pair<DTNode *, DTNode *>> &Block2Node,
     DenseMap<Operation *, DTNode *> &Op2Node, Region *r);
 
-void processOp(
+void processOpDom(
     DT *dt, DenseMap<Region *, std::pair<DTNode *, DTNode *>> &R2EntryExit,
     DenseMap<mlir::Block *, std::pair<DTNode *, DTNode *>> &Block2Node,
     DenseMap<Operation *, DTNode *> &Op2Node, Operation *op) {
   const int numRegions = op->getNumRegions();
   for (int i = 0; i < numRegions; i++) {
     Region &R = op->getRegion(i);
-    processRegion(dt, R2EntryExit, Block2Node, Op2Node, &R);
+    processRegionDom(dt, R2EntryExit, Block2Node, Op2Node, &R);
   }
 }
 
@@ -139,7 +139,7 @@ void getRegionsFromValue(Value v, std::set<mlir::Region *> &out) {
   }
 }
 
-void processRegion(
+void processRegionDom(
     DT *dt, DenseMap<Region *, std::pair<DTNode *, DTNode *>> &R2EntryExit,
     DenseMap<mlir::Block *, std::pair<DTNode *, DTNode *>> &Block2Node,
     DenseMap<Operation *, DTNode *> &Op2Node, mlir::Region *R) {
@@ -163,7 +163,7 @@ void processRegion(
   for (mlir::Block &B : *R) {
     for (Operation &Op : B) {
       // recursively process regions.
-      processOp(dt, R2EntryExit, Block2Node, Op2Node, &Op);
+      processOpDom(dt, R2EntryExit, Block2Node, Op2Node, &Op);
 
       Op2Node[&Op] = Block2Node[&B].second;
       /*
@@ -249,15 +249,18 @@ void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
     DT *dt = new DT;
     auto dominanceInfo = std::make_unique<base>();
 
-    processOp(dt, this->R2EntryExit, this->Block2EntryExit, this->Op2Node, f);
-    dt->entry = this->R2EntryExit[&f.getRegion()].first;
-    dominanceInfo->recalculate(*dt);
-    llvm::errs() << "\n\n@@@@processing function.. |" << f << "\n";
-
+    if (!IsPostDom) {
+      processOpDom(dt, this->R2EntryExit, this->Block2EntryExit, this->Op2Node,
+                   f);
+      dt->entry = this->R2EntryExit[&f.getRegion()].first;
+      dominanceInfo->recalculate(*dt);
+      llvm::errs() << "\n\n@@@@processing function.. |" << f << "\n";
+    } else {
+      assert(false && "don't know how to process post dom!");
+    }
     for (int i = 0; i < dt->Nodes.size(); ++i) {
       dt->Nodes[i]->Info = dominanceInfo.get();
       dt->Nodes[i]->DebugIndex = i;
-
     }
 
     for (int i = 0; i < dt->Nodes.size(); ++i) {
@@ -300,7 +303,7 @@ void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
 
   // this->dt = new DT();
 
-  // processOp(this->dt, this->R2EntryExit, this->Block2EntryExit,
+  // processOpDom(this->dt, this->R2EntryExit, this->Block2EntryExit,
   // this->Op2Node,
   //           op);
   // this->dt->entry = this->R2EntryExit[&module.getRegion()].first;
@@ -309,7 +312,7 @@ void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
   //   const int numRegions = op->getNumRegions();
   //   for (int i = 0; i < numRegions; i++) {
   //     Region &R = op->getRegion(i);
-  //     processRegion(R2EntryExit, Block2Node, &R);
+  //     processRegionDom(R2EntryExit, Block2Node, &R);
   //   }
   // });
 
@@ -437,16 +440,21 @@ DominanceInfoBase<IsPostDom>::findNearestCommonDominator(Block *a,
   llvm::errs() << "\n-b(?)\n";
   b->print(llvm::errs());
 
-  if (!a || !b) { return nullptr; }
-  if (a == b) { return a; }
+  if (!a || !b) {
+    return nullptr;
+  }
+  if (a == b) {
+    return a;
+  }
 
   // assert(false && "unimplemented");
 
   auto ita = this->Block2EntryExit.find(a);
   auto itb = this->Block2EntryExit.find(b);
 
-  // we are sometimes asked about the block which is the entry block of the **module region**.
-  // This is a nonsensical BB to be queried about, so ignore it.
+  // we are sometimes asked about the block which is the entry block of the
+  // **module region**. This is a nonsensical BB to be queried about, so ignore
+  // it.
   if (ita == Block2EntryExit.end() || itb == Block2EntryExit.end()) {
     return nullptr;
   }
@@ -479,8 +487,11 @@ DominanceInfoBase<IsPostDom>::findNearestCommonDominator(Block *a,
   // auto domit = func2Dominance.find(fn);
   // assert(domit != func2Dominance.end());
   // check if my exit dominates your entry.
-  DTNode *commonDom = dominanceInfo->findNearestCommonDominator(ita->second.first, itb->second.first);
-  llvm::errs() << "-commonDom: "; commonDom->print(llvm::errs()); llvm::errs() << "\n";
+  DTNode *commonDom = dominanceInfo->findNearestCommonDominator(
+      ita->second.first, itb->second.first);
+  llvm::errs() << "-commonDom: ";
+  commonDom->print(llvm::errs());
+  llvm::errs() << "\n";
   assert(commonDom->kind == DTNode::Kind::DTBlock);
   return commonDom->getBlock();
 
@@ -521,10 +532,20 @@ bool DominanceInfoBase<IsPostDom>::properlyDominatesBB(Block *a,
   if (!a || !b) {
     return false;
   }
-
+  llvm::errs() << "\n-a(?)\n";
+  a->print(llvm::errs());
+  llvm::errs() << "\n-b(?)\n";
+  b->print(llvm::errs());
 
   auto ita = this->Block2EntryExit.find(a);
   auto itb = this->Block2EntryExit.find(b);
+
+  // we are sometimes asked about blocks that are like the module's
+  // entry block which is nonsensical. We hold no information about such blocks,
+  // so give up and conservatively return false.
+  if (ita == this->Block2EntryExit.end() || itb == this->Block2EntryExit.end()) {
+    return false; 
+  }
   assert(ita != Block2EntryExit.end());
   assert(itb != Block2EntryExit.end());
 
@@ -549,7 +570,8 @@ bool DominanceInfoBase<IsPostDom>::properlyDominatesBB(Block *a,
   // auto domit = func2Dominance.find(fn);
   // assert(domit != func2Dominance.end());
   // check if my exit dominates your entry.
-  return dominanceInfo->properlyDominates(ita->second.second, itb->second.first);
+  return dominanceInfo->properlyDominates(ita->second.second,
+                                          itb->second.first);
 
   // return dominanceInfo->properlyDominates(ita->second.first,
   // itb->second.first);
@@ -617,13 +639,17 @@ template <bool IsPostDom>
 bool DominanceInfoBase<IsPostDom>::isReachableFromEntry(Block *a) const {
   llvm::errs() << __PRETTY_FUNCTION__ << "\n";
   llvm::errs() << "-a: " << a << "\n";
-  llvm::errs() << "-a: "; a->print(llvm::errs()); llvm::errs() << "\n";
+  llvm::errs() << "-a: ";
+  a->print(llvm::errs());
+  llvm::errs() << "\n";
 
   // assert(false && "unreachable");
   auto it = this->Block2EntryExit.find(a);
   // TODO: why can there a BB we don't understand? I don't get it, but OK.
   // Sid: this condition was stolen from previous code.
-  if (it == this->Block2EntryExit.end()) { return true; }
+  if (it == this->Block2EntryExit.end()) {
+    return true;
+  }
 
   assert(it != this->Block2EntryExit.end());
   DTNode *Entry = it->second.first;

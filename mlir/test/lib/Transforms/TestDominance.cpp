@@ -101,18 +101,18 @@ struct TestDominancePass : public PassWrapper<TestDominancePass, FunctionPass> {
     dominanceTest.printDominance(getAnalysis<DominanceInfo>(),
                                  /*printCommonDominatorInfo=*/true);
 
-    llvm::errs() << "--- PostDominanceInfo ---\n";
-    dominanceTest.printDominance(getAnalysis<PostDominanceInfo>(),
-                                 /*printCommonDominatorInfo=*/true);
+    // llvm::errs() << "--- PostDominanceInfo ---\n";
+    // dominanceTest.printDominance(getAnalysis<PostDominanceInfo>(),
+                                 // /*printCommonDominatorInfo=*/true);
 
     // Print dominance relationship between blocks.
     llvm::errs() << "--- Block Dominance relationship ---\n";
     dominanceTest.printDominance(getAnalysis<DominanceInfo>(),
                                  /*printCommonDominatorInfo=*/false);
 
-    llvm::errs() << "--- Block PostDominance relationship ---\n";
-    dominanceTest.printDominance(getAnalysis<PostDominanceInfo>(),
-                                 /*printCommonDominatorInfo=*/false);
+    // llvm::errs() << "--- Block PostDominance relationship ---\n";
+    // dominanceTest.printDominance(getAnalysis<PostDominanceInfo>(),
+                                 // /*printCommonDominatorInfo=*/false);
   }
 };
 
