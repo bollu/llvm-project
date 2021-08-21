@@ -11,6 +11,7 @@ add_mlir_library(MLIRIR
   Diagnostics.cpp
   Dialect.cpp
   Dominance.cpp
+  OldDominance.cpp
   FunctionImplementation.cpp
   FunctionSupport.cpp
   IntegerSet.cpp

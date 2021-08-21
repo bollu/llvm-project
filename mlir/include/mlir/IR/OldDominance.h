@@ -16,20 +16,20 @@ extern template class llvm::DominatorTreeBase<mlir::Block, false>;
 extern template class llvm::DominatorTreeBase<mlir::Block, true>;
 
 namespace mlir {
-using DominanceInfoNode = llvm::DomTreeNodeBase<Block>;
+using OldDominanceInfoNode = llvm::DomTreeNodeBase<Block>;
 class Operation;
 
 namespace detail {
-template <bool IsPostDom> class DominanceInfoBase {
+template <bool IsPostDom> class OldDominanceInfoBase {
   using base = llvm::DominatorTreeBase<Block, IsPostDom>;
 
 public:
-  DominanceInfoBase(Operation *op) { recalculate(op); }
-  DominanceInfoBase(DominanceInfoBase &&) = default;
-  DominanceInfoBase &operator=(DominanceInfoBase &&) = default;
+  OldDominanceInfoBase(Operation *op) { recalculate(op); }
+  OldDominanceInfoBase(OldDominanceInfoBase &&) = default;
+  OldDominanceInfoBase &operator=(OldDominanceInfoBase &&) = default;
 
-  DominanceInfoBase(const DominanceInfoBase &) = delete;
-  DominanceInfoBase &operator=(const DominanceInfoBase &) = delete;
+  OldDominanceInfoBase(const OldDominanceInfoBase &) = delete;
+  OldDominanceInfoBase &operator=(const OldDominanceInfoBase &) = delete;
 
   /// Recalculate the dominance info.
   void recalculate(Operation *op);
@@ -45,16 +45,16 @@ public:
   }
 
   /// Get the root dominance node of the given region.
-  DominanceInfoNode *getRootNode(Region *region) {
+  OldDominanceInfoNode *getRootNode(Region *region) {
     assert(dominanceInfos.count(region) != 0);
     return dominanceInfos[region]->getRootNode();
   }
 
   /// Return the dominance node from the Region containing block A.
-  DominanceInfoNode *getNode(Block *a);
+  OldDominanceInfoNode *getNode(Block *a);
 
 protected:
-  using super = DominanceInfoBase<IsPostDom>;
+  using super = OldDominanceInfoBase<IsPostDom>;
 
   /// Return true if the specified block A properly dominates block B.
   bool properlyDominates(Block *a, Block *b) const;
@@ -71,7 +71,7 @@ protected:
 /// A class for computing basic dominance information. Note that this
 /// class is aware of different types of regions and returns a
 /// region-kind specific concept of dominance. See RegionKindInterface.
-class DominanceInfo : public detail::DominanceInfoBase</*IsPostDom=*/false> {
+class OldDominanceInfo : public detail::OldDominanceInfoBase</*IsPostDom=*/false> {
 public:
   using super::super;
 
@@ -129,7 +129,7 @@ public:
 };
 
 /// A class for computing basic postdominance information.
-class PostDominanceInfo : public detail::DominanceInfoBase</*IsPostDom=*/true> {
+class OldPostDominanceInfo : public detail::OldDominanceInfoBase</*IsPostDom=*/true> {
 public:
   using super::super;
 
@@ -164,18 +164,18 @@ namespace llvm {
 
 /// DominatorTree GraphTraits specialization so the DominatorTree can be
 /// iterated by generic graph iterators.
-template <> struct GraphTraits<mlir::DominanceInfoNode *> {
-  using ChildIteratorType = mlir::DominanceInfoNode::const_iterator;
-  using NodeRef = mlir::DominanceInfoNode *;
+template <> struct GraphTraits<mlir::OldDominanceInfoNode *> {
+  using ChildIteratorType = mlir::OldDominanceInfoNode::const_iterator;
+  using NodeRef = mlir::OldDominanceInfoNode *;
 
   static NodeRef getEntryNode(NodeRef N) { return N; }
   static inline ChildIteratorType child_begin(NodeRef N) { return N->begin(); }
   static inline ChildIteratorType child_end(NodeRef N) { return N->end(); }
 };
 
-template <> struct GraphTraits<const mlir::DominanceInfoNode *> {
-  using ChildIteratorType = mlir::DominanceInfoNode::const_iterator;
-  using NodeRef = const mlir::DominanceInfoNode *;
+template <> struct GraphTraits<const mlir::OldDominanceInfoNode *> {
+  using ChildIteratorType = mlir::OldDominanceInfoNode::const_iterator;
+  using NodeRef = const mlir::OldDominanceInfoNode *;
 
   static NodeRef getEntryNode(NodeRef N) { return N; }
   static inline ChildIteratorType child_begin(NodeRef N) { return N->begin(); }

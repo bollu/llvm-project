@@ -11,7 +11,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/IR/Dominance.h"
+#include "mlir/IR/OldDominance.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/RegionKindInterface.h"
 #include "llvm/ADT/DenseMap.h"
@@ -33,11 +33,11 @@ static bool hasSSADominance(Operation *op, unsigned index) {
 }
 
 //===----------------------------------------------------------------------===//
-// DominanceInfoBase
+// OldDominanceInfoBase
 //===----------------------------------------------------------------------===//
 
 template <bool IsPostDom>
-void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
+void OldDominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
   dominanceInfos.clear();
 
   // Build the dominance for each of the operation regions.
@@ -133,7 +133,7 @@ static bool tryGetBlocksInSameRegion(Block *&a, Block *&b) {
 
 template <bool IsPostDom>
 Block *
-DominanceInfoBase<IsPostDom>::findNearestCommonDominator(Block *a,
+OldDominanceInfoBase<IsPostDom>::findNearestCommonDominator(Block *a,
                                                          Block *b) const {
   // If either a or b are null, then conservatively return nullptr.
   if (!a || !b)
@@ -155,7 +155,7 @@ DominanceInfoBase<IsPostDom>::findNearestCommonDominator(Block *a,
 }
 
 template <bool IsPostDom>
-DominanceInfoNode *DominanceInfoBase<IsPostDom>::getNode(Block *a) {
+OldDominanceInfoNode *OldDominanceInfoBase<IsPostDom>::getNode(Block *a) {
   Region *region = a->getParent();
   assert(dominanceInfos.count(region) != 0);
   return dominanceInfos[region]->getNode(a);
@@ -163,7 +163,7 @@ DominanceInfoNode *DominanceInfoBase<IsPostDom>::getNode(Block *a) {
 
 /// Return true if the specified block A properly dominates block B.
 template <bool IsPostDom>
-bool DominanceInfoBase<IsPostDom>::properlyDominates(Block *a, Block *b) const {
+bool OldDominanceInfoBase<IsPostDom>::properlyDominates(Block *a, Block *b) const {
   // A block dominates itself but does not properly dominate itself.
   if (a == b)
     return false;
@@ -202,7 +202,7 @@ bool DominanceInfoBase<IsPostDom>::properlyDominates(Block *a, Block *b) const {
 /// Return true if the specified block is reachable from the entry block of its
 /// region.
 template <bool IsPostDom>
-bool DominanceInfoBase<IsPostDom>::isReachableFromEntry(Block *a) const {
+bool OldDominanceInfoBase<IsPostDom>::isReachableFromEntry(Block *a) const {
   Region *regionA = a->getParent();
   auto baseInfoIt = dominanceInfos.find(regionA);
   if (baseInfoIt == dominanceInfos.end())
@@ -210,15 +210,15 @@ bool DominanceInfoBase<IsPostDom>::isReachableFromEntry(Block *a) const {
   return baseInfoIt->second->isReachableFromEntry(a);
 }
 
-template class detail::DominanceInfoBase</*IsPostDom=*/true>;
-template class detail::DominanceInfoBase</*IsPostDom=*/false>;
+template class detail::OldDominanceInfoBase</*IsPostDom=*/true>;
+template class detail::OldDominanceInfoBase</*IsPostDom=*/false>;
 
 //===----------------------------------------------------------------------===//
 // DominanceInfo
 //===----------------------------------------------------------------------===//
 
 /// Return true if operation A properly dominates operation B.
-bool DominanceInfo::properlyDominates(Operation *a, Operation *b) const {
+bool OldDominanceInfo::properlyDominates(Operation *a, Operation *b) const {
   Block *aBlock = a->getBlock(), *bBlock = b->getBlock();
   Region *aRegion = a->getParentRegion();
   unsigned aRegionNum = aRegion->getRegionNumber();
@@ -252,7 +252,7 @@ bool DominanceInfo::properlyDominates(Operation *a, Operation *b) const {
 }
 
 /// Return true if value A properly dominates operation B.
-bool DominanceInfo::properlyDominates(Value a, Operation *b) const {
+bool OldDominanceInfo::properlyDominates(Value a, Operation *b) const {
   if (auto *aOp = a.getDefiningOp()) {
     // Dominance changes based on the region type.
     auto *aRegion = aOp->getParentRegion();
@@ -275,7 +275,7 @@ bool DominanceInfo::properlyDominates(Value a, Operation *b) const {
   return dominates(a.cast<BlockArgument>().getOwner(), b->getBlock());
 }
 
-void DominanceInfo::updateDFSNumbers() {
+void OldDominanceInfo::updateDFSNumbers() {
   for (auto &iter : dominanceInfos)
     iter.second->updateDFSNumbers();
 }
@@ -285,7 +285,7 @@ void DominanceInfo::updateDFSNumbers() {
 //===----------------------------------------------------------------------===//
 
 /// Returns true if statement 'a' properly postdominates statement b.
-bool PostDominanceInfo::properlyPostDominates(Operation *a, Operation *b) {
+bool OldPostDominanceInfo::properlyPostDominates(Operation *a, Operation *b) {
   auto *aBlock = a->getBlock(), *bBlock = b->getBlock();
   auto *aRegion = a->getParentRegion();
   unsigned aRegionNum = aRegion->getRegionNumber();
