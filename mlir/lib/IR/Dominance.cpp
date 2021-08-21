@@ -29,6 +29,7 @@
 #include "llvm/ADT/GraphTraits.h"
 #include "llvm/ExecutionEngine/Orc/CompileOnDemandLayer.h"
 #include "llvm/IR/Dominators.h"
+#include "llvm/Support/Debug.h"
 #include "llvm/Support/GenericDomTreeConstruction.h"
 #include "llvm/Support/GraphWriter.h"
 #include "llvm/Support/YAMLTraits.h"
@@ -51,11 +52,11 @@ static bool hasSSADominance(Operation *op, unsigned index) {
          (!kindInterface || kindInterface.hasSSADominance(index));
 }
 
-void debug_prompt() {
-  llvm::errs() << "\n";
-  getchar();
-  llvm::errs() << "\r";
-}
+const int DEBUG = 0;
+#define DEBUG_TYPE "dom"
+
+using llvm::dbgs;
+
 //===----------------------------------------------------------------------===//
 // DT
 //===----------------------------------------------------------------------===//
@@ -222,9 +223,11 @@ void processRegionDom(
       if (Op.hasTrait<OpTrait::IsTerminator>() &&
           !Op.hasTrait<OpTrait::ReturnLike>()) {
         for (BlockOperand &NextB : Op.getBlockOperands()) {
-          llvm::errs() << "creating next block links for |" << Op
-                       << "| to: " << NextB.get() << "\n";
-          getchar();
+          if (DEBUG) {
+            llvm::dbgs() << "creating next block links for |" << Op
+                         << "| to: " << NextB.get() << "\n";
+            getchar();
+          }
           DTNode *ThisExit = Block2Node[&B].second;
           DTNode *NextEntry = Block2Node[NextB.get()].first;
           ThisExit->addSuccessor(NextEntry);
@@ -254,7 +257,9 @@ void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
                    f);
       dt->entry = this->R2EntryExit[&f.getRegion()].first;
       dominanceInfo->recalculate(*dt);
-      llvm::errs() << "\n\n@@@@processing function.. |" << f << "\n";
+      if (DEBUG) {
+        llvm::dbgs() << "\n\n@@@@processing function.. |" << f << "\n";
+      }
     } else {
       assert(false && "don't know how to process post dom!");
     }
@@ -263,41 +268,43 @@ void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
       dt->Nodes[i]->DebugIndex = i;
     }
 
-    for (int i = 0; i < dt->Nodes.size(); ++i) {
-      for (int j = 0; j < dt->Nodes.size(); ++j) {
-        llvm::errs() << "dominates(" << i << " " << j
-                     << ", isPostDom:" << IsPostDom << ") = "
-                     << dominanceInfo->dominates(dt->Nodes[i], dt->Nodes[j])
-                     << "\n";
+    if (DEBUG) {
+
+      for (int i = 0; i < dt->Nodes.size(); ++i) {
+        for (int j = 0; j < dt->Nodes.size(); ++j) {
+          llvm::dbgs() << "dominates(" << i << " " << j
+                       << ", isPostDom:" << IsPostDom << ") = "
+                       << dominanceInfo->dominates(dt->Nodes[i], dt->Nodes[j])
+                       << "\n";
+        }
       }
-    }
 
-    for (int i = 0; i < dt->Nodes.size(); ++i) {
-      llvm::errs() << "\n##" << i << (dt->entry == dt->Nodes[i] ? " ENTRY" : "")
-                   << ":\n";
-      dt->Nodes[i]->print(llvm::errs());
-      llvm::errs() << "\n==\n";
-    }
-
-    std::map<DTNode *, int> node2ix;
-    for (int i = 0; i < dt->Nodes.size(); ++i) {
-      node2ix[dt->Nodes[i]] = i;
-    }
-
-    llvm::errs() << "edges:\n";
-    for (int i = 0; i < dt->Nodes.size(); ++i) {
-      for (int j = 0; j < dt->Nodes[i]->successors.size(); ++j) {
-        llvm::errs() << i << " -> " << node2ix[dt->Nodes[i]->successors[j]]
-                     << "\n";
+      for (int i = 0; i < dt->Nodes.size(); ++i) {
+        llvm::dbgs() << "\n##" << i
+                     << (dt->entry == dt->Nodes[i] ? " ENTRY" : "") << ":\n";
+        dt->Nodes[i]->print(llvm::dbgs());
+        llvm::dbgs() << "\n==\n";
       }
+
+      std::map<DTNode *, int> node2ix;
+      for (int i = 0; i < dt->Nodes.size(); ++i) {
+        node2ix[dt->Nodes[i]] = i;
+      }
+
+      llvm::dbgs() << "edges:\n";
+      for (int i = 0; i < dt->Nodes.size(); ++i) {
+        for (int j = 0; j < dt->Nodes[i]->successors.size(); ++j) {
+          llvm::dbgs() << i << " -> " << node2ix[dt->Nodes[i]->successors[j]]
+                       << "\n";
+        }
+      }
+
+      int FD;
+      llvm::sys::fs::openFileForWrite(
+          "/home/bollu/temp/" + f.getName() + "-graph.dot", FD);
+      llvm::raw_fd_ostream O(FD, /*shouldClose=*/true);
+      llvm::WriteGraph(O, dt);
     }
-
-    int FD;
-    llvm::sys::fs::openFileForWrite(
-        "/home/bollu/temp/" + f.getName() + "-graph.dot", FD);
-    llvm::raw_fd_ostream O(FD, /*shouldClose=*/true);
-    llvm::WriteGraph(O, dt);
-
     func2Dominance.insert({f.getOperation(), std::move(dominanceInfo)});
   });
 
@@ -433,13 +440,13 @@ template <bool IsPostDom>
 Block *
 DominanceInfoBase<IsPostDom>::findNearestCommonDominator(Block *a,
                                                          Block *b) const {
-  llvm::errs() << __PRETTY_FUNCTION__ << "\n";
-
-  llvm::errs() << "\n-a(?)\n";
-  a->print(llvm::errs());
-  llvm::errs() << "\n-b(?)\n";
-  b->print(llvm::errs());
-
+  if (DEBUG) {
+    llvm::dbgs() << __PRETTY_FUNCTION__ << "\n";
+    llvm::dbgs() << "\n-a(?)\n";
+    a->print(llvm::dbgs());
+    llvm::dbgs() << "\n-b(?)\n";
+    b->print(llvm::dbgs());
+  }
   if (!a || !b) {
     return nullptr;
   }
@@ -462,11 +469,13 @@ DominanceInfoBase<IsPostDom>::findNearestCommonDominator(Block *a,
   assert(ita != Block2EntryExit.end());
   assert(itb != Block2EntryExit.end());
 
-  llvm::errs() << "\n-a(" << ita->second.first->DebugIndex << ")\n";
-  a->print(llvm::errs());
-  llvm::errs() << "\n-b(" << itb->second.first->DebugIndex << ")\n";
-  b->print(llvm::errs());
+  if (DEBUG) {
 
+    llvm::dbgs() << "\n-a(" << ita->second.first->DebugIndex << ")\n";
+    a->print(llvm::dbgs());
+    llvm::dbgs() << "\n-b(" << itb->second.first->DebugIndex << ")\n";
+    b->print(llvm::dbgs());
+  }
   if (a != b) {
     assert(ita->second.first != itb->second.first);
   }
@@ -483,16 +492,29 @@ DominanceInfoBase<IsPostDom>::findNearestCommonDominator(Block *a,
   // Operation *fn = a->getParentOp()->getParentOfType<FuncOp>();
   // if (fn == nullptr) { return false;}
 
-  // llvm::errs() << "parent: " << fn << "\n";
+  // llvm::dbgs() << "parent: " << fn << "\n";
   // auto domit = func2Dominance.find(fn);
   // assert(domit != func2Dominance.end());
   // check if my exit dominates your entry.
   DTNode *commonDom = dominanceInfo->findNearestCommonDominator(
       ita->second.first, itb->second.first);
-  llvm::errs() << "-commonDom: ";
-  commonDom->print(llvm::errs());
-  llvm::errs() << "\n";
+
+  if (DEBUG) {
+    llvm::dbgs() << "-commonDom: ";
+    if (commonDom) {
+      commonDom->print(llvm::dbgs());
+    } else {
+      llvm::dbgs() << "nullptr ";
+    }
+    llvm::dbgs() << "\n";
+  }
+  if (!commonDom) {
+    return nullptr;
+  }
+
+  assert(commonDom);
   assert(commonDom->kind == DTNode::Kind::DTBlock);
+
   return commonDom->getBlock();
 
   // // If either a or b are null, then conservatively return nullptr.
@@ -526,33 +548,40 @@ DominanceInfoNode *DominanceInfoBase<IsPostDom>::getNode(Block *a) {
 template <bool IsPostDom>
 bool DominanceInfoBase<IsPostDom>::properlyDominatesBB(Block *a,
                                                        Block *b) const {
-  llvm::errs() << __PRETTY_FUNCTION__ << "\n";
 
+  if (DEBUG) {
+    llvm::dbgs() << __PRETTY_FUNCTION__ << "\n";
+  }
   // If either a or b are null, then conservatively return false.
   if (!a || !b) {
     return false;
   }
-  llvm::errs() << "\n-a(?)\n";
-  a->print(llvm::errs());
-  llvm::errs() << "\n-b(?)\n";
-  b->print(llvm::errs());
+  if (DEBUG) {
 
+    llvm::dbgs() << "\n-a(?)\n";
+    a->print(llvm::dbgs());
+    llvm::dbgs() << "\n-b(?)\n";
+    b->print(llvm::dbgs());
+  }
   auto ita = this->Block2EntryExit.find(a);
   auto itb = this->Block2EntryExit.find(b);
 
   // we are sometimes asked about blocks that are like the module's
   // entry block which is nonsensical. We hold no information about such blocks,
   // so give up and conservatively return false.
-  if (ita == this->Block2EntryExit.end() || itb == this->Block2EntryExit.end()) {
-    return false; 
+  if (ita == this->Block2EntryExit.end() ||
+      itb == this->Block2EntryExit.end()) {
+    return false;
   }
   assert(ita != Block2EntryExit.end());
   assert(itb != Block2EntryExit.end());
 
-  llvm::errs() << "\n-a(" << ita->second.first->DebugIndex << ")\n";
-  a->print(llvm::errs());
-  llvm::errs() << "\n-b(" << itb->second.first->DebugIndex << ")\n";
-  b->print(llvm::errs());
+  if (DEBUG) {
+    llvm::dbgs() << "\n-a(" << ita->second.first->DebugIndex << ")\n";
+    a->print(llvm::dbgs());
+    llvm::dbgs() << "\n-b(" << itb->second.first->DebugIndex << ")\n";
+    b->print(llvm::dbgs());
+  }
 
   if (a != b) {
     assert(ita->second.first != itb->second.first);
@@ -566,7 +595,7 @@ bool DominanceInfoBase<IsPostDom>::properlyDominatesBB(Block *a,
   // Operation *fn = a->getParentOp()->getParentOfType<FuncOp>();
   // if (fn == nullptr) { return false;}
 
-  // llvm::errs() << "parent: " << fn << "\n";
+  // llvm::dbgs() << "parent: " << fn << "\n";
   // auto domit = func2Dominance.find(fn);
   // assert(domit != func2Dominance.end());
   // check if my exit dominates your entry.
@@ -637,11 +666,13 @@ bool DominanceInfoBase<IsPostDom>::properlyDominatesBB(Block *a,
 /// region.
 template <bool IsPostDom>
 bool DominanceInfoBase<IsPostDom>::isReachableFromEntry(Block *a) const {
-  llvm::errs() << __PRETTY_FUNCTION__ << "\n";
-  llvm::errs() << "-a: " << a << "\n";
-  llvm::errs() << "-a: ";
-  a->print(llvm::errs());
-  llvm::errs() << "\n";
+  if (DEBUG) {
+    llvm::dbgs() << __PRETTY_FUNCTION__ << "\n";
+    llvm::dbgs() << "-a: " << a << "\n";
+    llvm::dbgs() << "-a: ";
+    a->print(llvm::dbgs());
+    llvm::dbgs() << "\n";
+  }
 
   // assert(false && "unreachable");
   auto it = this->Block2EntryExit.find(a);
