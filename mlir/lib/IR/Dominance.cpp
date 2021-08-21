@@ -24,6 +24,7 @@
 #include "mlir/IR/Value.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
 #include "mlir/Support/LLVM.h"
+#include "llvm-c/Object.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/GraphTraits.h"
@@ -125,6 +126,24 @@ void processOpDom(
   }
 }
 
+void processRegionPostDom(
+    DT *dt, DenseMap<Region *, std::pair<DTNode *, DTNode *>> &R2EntryExit,
+    DenseMap<mlir::Block *, std::pair<DTNode *, DTNode *>> &Block2Node,
+    DenseMap<Operation *, DTNode *> &Op2Node, Region *r);
+
+void processOpPostDom(
+    DT *dt, DenseMap<Region *, std::pair<DTNode *, DTNode *>> &R2EntryExit,
+    DenseMap<mlir::Block *, std::pair<DTNode *, DTNode *>> &Block2Node,
+    DenseMap<Operation *, DTNode *> &Op2Node, Operation *op) {
+  const int numRegions = op->getNumRegions();
+  for (int i = 0; i < numRegions; i++) {
+    Region &R = op->getRegion(i);
+    processRegionPostDom(dt, R2EntryExit, Block2Node, Op2Node, &R);
+  }
+}
+
+
+
 void getRegionsFromValue(Value v, std::set<mlir::Region *> &out) {
   assert(!v.dyn_cast<BlockArgument>() &&
          "region value cannot be block argument!");
@@ -139,6 +158,67 @@ void getRegionsFromValue(Value v, std::set<mlir::Region *> &out) {
     }
   }
 }
+
+
+void processRegionPostDom(
+    DT *dt, DenseMap<Region *, std::pair<DTNode *, DTNode *>> &R2EntryExit,
+    DenseMap<mlir::Block *, std::pair<DTNode *, DTNode *>> &Block2Node,
+    DenseMap<Operation *, DTNode *> &Op2Node, mlir::Region *R) {
+
+  assert(R->getBlocks().size() > 0);
+  // for each block, create entry/exit nodes.
+  for (mlir::Block &B : *R) {
+    // "entry node" for this block.
+    DTNode *BNode = DTNode::newBlock(&B, dt);
+    dt->Nodes.push_back(BNode);
+    Block2Node[&B].first = Block2Node[&B].second = BNode;
+  }
+
+  Block &EntryBlock = R->getBlocks().front();
+  DTNode *RegionEntry = Block2Node[&EntryBlock].first;
+  DTNode *RegionExit = DTNode::newExit(R, dt);
+  dt->Nodes.push_back(RegionExit);
+
+  R2EntryExit[R] = {RegionEntry, RegionExit};
+
+  for (mlir::Block &B : *R) {
+    for (Operation &Op : B) {
+      // recursively process regions.
+      processOpPostDom(dt, R2EntryExit, Block2Node, Op2Node, &Op);
+
+      Op2Node[&Op] = Block2Node[&B].second;
+   
+      // return like op. exit to region exit.
+      if (Op.hasTrait<OpTrait::IsTerminator>() &&
+          Op.hasTrait<OpTrait::ReturnLike>()) {
+        // add edit to exit block of region
+        DTNode *ThisExit = Block2Node[&B].second;
+        RegionExit->addSuccessor(ThisExit);
+        // ThisExit->addSuccessor(RegionExit);
+        continue;
+      }
+
+      // not a return like terminator.
+      if (Op.hasTrait<OpTrait::IsTerminator>() &&
+          !Op.hasTrait<OpTrait::ReturnLike>()) {
+        for (BlockOperand &NextB : Op.getBlockOperands()) {
+          if (DEBUG) {
+            llvm::dbgs() << "creating next block links for |" << Op
+                         << "| to: " << NextB.get() << "\n";
+            getchar();
+          }
+          DTNode *ThisExit = Block2Node[&B].second;
+          DTNode *NextEntry = Block2Node[NextB.get()].first;
+          NextEntry->addSuccessor(ThisExit);
+          // ThisExit->addSuccessor(NextEntry);
+        }
+        continue;
+      }
+    }
+  }
+}
+
+
 
 void processRegionDom(
     DT *dt, DenseMap<Region *, std::pair<DTNode *, DTNode *>> &R2EntryExit,
@@ -261,8 +341,16 @@ void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
         llvm::dbgs() << "\n\n@@@@processing function.. |" << f << "\n";
       }
     } else {
-      assert(false && "don't know how to process post dom!");
+      processOpPostDom(dt, this->R2EntryExit, this->Block2EntryExit, this->Op2Node,
+                   f);
+      dt->entry = this->R2EntryExit[&f.getRegion()].second;
+      dominanceInfo->recalculate(*dt);
+      if (DEBUG) {
+        llvm::dbgs() << "\n\n@@@@processing function.. |" << f << "\n";
+      }
     }
+
+    
     for (int i = 0; i < dt->Nodes.size(); ++i) {
       dt->Nodes[i]->Info = dominanceInfo.get();
       dt->Nodes[i]->DebugIndex = i;
