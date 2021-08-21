@@ -25,8 +25,11 @@
 #include "mlir/Transforms/LoopUtils.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/GenericDomTree.h"
 
 using llvm::dbgs;
+
+#define BOLLU_CHANGES
 
 #define DEBUG_TYPE "linalg-hoisting"
 
@@ -444,9 +447,14 @@ void mlir::linalg::hoistRedundantVectorTransfers(FuncOp func) {
           transferRead.getVectorType() == transferWrite.getVectorType())
         return WalkResult::advance();
 
-      // TODO: may want to memoize this information for performance but it
-      // likely gets invalidated often.
+// TODO: may want to memoize this information for performance but it
+// likely gets invalidated often.
+#ifdef BOLLU_CHANGES
+      DominanceInfo dom(func);
+#else
       DominanceInfo dom(loop);
+#endif
+
       if (!dom.properlyDominatesOO(transferRead.getOperation(), transferWrite))
         return WalkResult::advance();
       for (auto &use : transferRead.source().getUses()) {
