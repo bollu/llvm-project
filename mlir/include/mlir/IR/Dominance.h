@@ -32,6 +32,11 @@ struct DT {
   NodesT Nodes;
 
   void debug_print(llvm::raw_ostream &o) const;
+
+  DTNode &front() {
+    assert(entry);
+    return *entry;
+  }
 };
 
 // look at RegionGraphTraits.h
@@ -97,6 +102,11 @@ struct DTNode {
   // explicit DTNode() = default;
 
   void print(llvm::raw_ostream &os);
+
+  mlir::Block *getBlock() {
+    assert(this->kind == Kind::DTBlock);
+    return this->b;
+  }
 
 private:
   DTNode(DT *parent) : parent(parent) {}

@@ -27,12 +27,14 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/GraphTraits.h"
+#include "llvm/ExecutionEngine/Orc/CompileOnDemandLayer.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/Support/GenericDomTreeConstruction.h"
 #include "llvm/Support/GraphWriter.h"
 #include "llvm/Support/YAMLTraits.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
+#include <sys/cdefs.h>
 
 using namespace mlir;
 using namespace mlir::detail;
@@ -428,8 +430,59 @@ template <bool IsPostDom>
 Block *
 DominanceInfoBase<IsPostDom>::findNearestCommonDominator(Block *a,
                                                          Block *b) const {
+  llvm::errs() << __PRETTY_FUNCTION__ << "\n";
 
-  assert(false && "unimplemented");
+  llvm::errs() << "\n-a(?)\n";
+  a->print(llvm::errs());
+  llvm::errs() << "\n-b(?)\n";
+  b->print(llvm::errs());
+
+  if (!a || !b) { return nullptr; }
+  if (a == b) { return a; }
+
+  // assert(false && "unimplemented");
+
+  auto ita = this->Block2EntryExit.find(a);
+  auto itb = this->Block2EntryExit.find(b);
+
+  // we are sometimes asked about the block which is the entry block of the **module region**.
+  // This is a nonsensical BB to be queried about, so ignore it.
+  if (ita == Block2EntryExit.end() || itb == Block2EntryExit.end()) {
+    return nullptr;
+  }
+
+  assert(ita != Block2EntryExit.end());
+  assert(itb != Block2EntryExit.end());
+
+  llvm::errs() << "\n-a(" << ita->second.first->DebugIndex << ")\n";
+  a->print(llvm::errs());
+  llvm::errs() << "\n-b(" << itb->second.first->DebugIndex << ")\n";
+  b->print(llvm::errs());
+
+  if (a != b) {
+    assert(ita->second.first != itb->second.first);
+  }
+
+  assert(ita->second.first->Info == itb->second.first->Info &&
+         "both must have same dom info data structure");
+  base *dominanceInfo = (base *)ita->second.first->Info;
+
+  // TODO, HACK, SID: this assumes we return the entry block!
+  // This is totally bankrupt in our case.
+  //  Find a correct thing to return.
+
+  // check if entry of A properly dominates entry of B.
+  // Operation *fn = a->getParentOp()->getParentOfType<FuncOp>();
+  // if (fn == nullptr) { return false;}
+
+  // llvm::errs() << "parent: " << fn << "\n";
+  // auto domit = func2Dominance.find(fn);
+  // assert(domit != func2Dominance.end());
+  // check if my exit dominates your entry.
+  DTNode *commonDom = dominanceInfo->findNearestCommonDominator(ita->second.first, itb->second.first);
+  llvm::errs() << "-commonDom: "; commonDom->print(llvm::errs()); llvm::errs() << "\n";
+  assert(commonDom->kind == DTNode::Kind::DTBlock);
+  return commonDom->getBlock();
 
   // // If either a or b are null, then conservatively return nullptr.
   // if (!a || !b)
