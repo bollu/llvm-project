@@ -9,6 +9,7 @@ add_mlir_library(MLIRTransforms
   Canonicalizer.cpp
   CopyRemoval.cpp
   CSE.cpp
+  OldCSE.cpp
   Inliner.cpp
   LocationSnapshot.cpp
   LoopCoalescing.cpp

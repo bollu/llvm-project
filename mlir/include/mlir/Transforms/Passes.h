@@ -69,6 +69,9 @@ std::unique_ptr<Pass> createCopyRemovalPass();
 /// Creates a pass to perform common sub expression elimination.
 std::unique_ptr<Pass> createCSEPass();
 
+/// Creates a pass to perform common sub expression elimination.
+std::unique_ptr<Pass> createOldCSEPass();
+
 /// Creates a loop fusion pass which fuses loops. Buffers of size less than or
 /// equal to `localBufSizeThreshold` are promoted to memory space
 /// `fastMemorySpace'.

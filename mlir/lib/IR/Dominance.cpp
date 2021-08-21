@@ -225,6 +225,8 @@ void processRegionDom(
     DenseMap<mlir::Block *, std::pair<DTNode *, DTNode *>> &Block2Node,
     DenseMap<Operation *, DTNode *> &Op2Node, mlir::Region *R) {
 
+  if (R->getBlocks().size() == 0) { return; }
+
   assert(R->getBlocks().size() > 0);
   // for each block, create entry/exit nodes.
   for (mlir::Block &B : *R) {
