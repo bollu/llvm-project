@@ -141,6 +141,9 @@ std::unique_ptr<Pass> createSymbolDCEPass();
 /// (identity) layout map.
 std::unique_ptr<OperationPass<ModuleOp>> createNormalizeMemRefsPass();
 
+std::unique_ptr<OperationPass<FuncOp>> createOldOldMemRefDataFlowOptPass();
+
+
 //===----------------------------------------------------------------------===//
 // Registration
 //===----------------------------------------------------------------------===//

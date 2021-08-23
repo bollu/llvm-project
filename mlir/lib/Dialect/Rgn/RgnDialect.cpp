@@ -1,3 +1,4 @@
+#include "mlir/Dialect/SCF/SCF.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/InitAllDialects.h"
@@ -217,7 +218,10 @@ class ScfIfToRgn : public mlir::ConversionPattern {
 public:
     explicit ScfIfToRgn(mlir::MLIRContext *context)
             : mlir::ConversionPattern(mlir::scf::IfOp::getOperationName(), 1,
-                                      context) {}
+                                      context) {
+
+                setHasBoundedRewriteRecursion();
+            }
 
     mlir::LogicalResult
     matchAndRewrite(mlir::Operation *Op, mlir::ArrayRef<mlir::Value> Operands,
@@ -240,12 +244,6 @@ public:
                 IfOp.getLoc(), SelectRgn, mlir::ArrayRef<mlir::Value>(),
                 IfOp->getResultTypes());
         Rewriter.replaceOp(IfOp, Call.getResults());
-
-        // TODO, MLIR BUG: for whatever reason, MLIR does not realize that I am cloning the region into the ValOp
-//    for(mlir::Block &b : ThenRgn.getRegion().getBlocks()) {
-//        Rewriter.notifyBlockCreated(&b);
-//    }
-
         return mlir::success();
     }
 };
@@ -301,6 +299,7 @@ struct ScfToRgnPass : public mlir::Pass {
         target.addLegalDialect<RgnDialect>();
         target.addLegalDialect<mlir::StandardOpsDialect>();
         target.addIllegalOp<mlir::scf::YieldOp>();
+        target.addIllegalOp<mlir::scf::IfOp>();
         // TODO: consider removing FuncOp in favour of our region op.
         target.addLegalOp<mlir::ModuleOp, mlir::ModuleTerminatorOp, mlir::FuncOp>();
 
