@@ -111,7 +111,7 @@ void RgnValOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
 void RgnValOp::getSuccessorRegions(
     mlir::Optional<unsigned> index, mlir::ArrayRef<mlir::Attribute> operands,
     mlir::SmallVectorImpl<mlir::RegionSuccessor> &regions) {
-  regions.push_back(mlir::RegionSuccessor(this->getOperation()->getResults()));
+  // regions.push_back(mlir::RegionSuccessor(this->getOperation()->getResults()));
   return;
 }
 
