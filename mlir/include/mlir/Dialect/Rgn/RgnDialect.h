@@ -1,7 +1,7 @@
 #pragma once
 #include "mlir/IR/Dialect.h"
-#include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/MLIRContext.h"
+#include "mlir/IR/OpDefinition.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
 #include "mlir/Pass/Pass.h"
 
@@ -15,8 +15,7 @@ public:
 class RgnReturnOp
     : public mlir::Op<RgnReturnOp, mlir::OpTrait::ZeroResult,
                       mlir::OpTrait::ZeroSuccessor, mlir::OpTrait::ReturnLike,
-                      mlir::OpTrait::OneOperand,
-                      mlir::OpTrait::IsTerminator> {
+                      mlir::OpTrait::OneOperand, mlir::OpTrait::IsTerminator> {
 public:
   using Op::Op;
   static llvm::StringRef getOperationName() { return "rgn.return"; };
@@ -25,7 +24,7 @@ public:
   static mlir::ParseResult parse(mlir::OpAsmParser &parser,
                                  mlir::OperationState &result);
 
-  template<typename ValsT>
+  template <typename ValsT>
   static void build(mlir::OpBuilder &builder, mlir::OperationState &state,
                     ValsT v);
 
@@ -35,7 +34,8 @@ public:
 class RgnValOp
     : public mlir::Op<RgnValOp, mlir::OpTrait::ZeroOperands,
                       mlir::OpTrait::OneResult, mlir::OpTrait::OneRegion,
-                      mlir::MemoryEffectOpInterface::Trait> {
+                      mlir::MemoryEffectOpInterface::Trait,
+                      mlir::RegionBranchOpInterface::Trait> {
 public:
   using Op::Op;
   static llvm::StringRef getOperationName() { return "rgn.val"; };
@@ -58,11 +58,16 @@ public:
   void getEffects(mlir::SmallVectorImpl<mlir::SideEffects::EffectInstance<
                       mlir::MemoryEffects::Effect>> &effects) {}
 
-    template<typename RangeT>
-    static void build(mlir::OpBuilder &builder, mlir::OperationState &state,
+  template <typename RangeT>
+  static void build(mlir::OpBuilder &builder, mlir::OperationState &state,
                     RangeT ts);
 
-    mlir::Region *region();
+  mlir::Region *region();
+
+  void
+  getSuccessorRegions(mlir::Optional<unsigned> index,
+                      mlir::ArrayRef<mlir::Attribute> operands,
+                      mlir::SmallVectorImpl<mlir::RegionSuccessor> &regions);
 };
 
 class RgnSymOp
@@ -89,8 +94,7 @@ public:
 
 // call a value.
 class RgnCallValOp
-    : public mlir::Op<RgnCallValOp, 
-                      mlir::OpTrait::VariadicOperands,
+    : public mlir::Op<RgnCallValOp, mlir::OpTrait::VariadicOperands,
                       mlir::OpTrait::VariadicResults> {
 public:
   using Op::Op;
@@ -119,14 +123,14 @@ public:
 
   void print(mlir::OpAsmPrinter &p);
 
-  template<typename ValsT, typename TypesT>
+  template <typename ValsT, typename TypesT>
   static void build(mlir::OpBuilder &builder, mlir::OperationState &state,
-                    mlir::Value rgn, ValsT args,
-                    TypesT rettys);
+                    mlir::Value rgn, ValsT args, TypesT rettys);
 };
 
 // call a symbol.
-class RgnCallSymOp : public mlir::Op<RgnCallSymOp, mlir::OpTrait::VariadicOperands> {
+class RgnCallSymOp
+    : public mlir::Op<RgnCallSymOp, mlir::OpTrait::VariadicOperands> {
 public:
   using Op::Op;
   static llvm::StringRef getOperationName() { return "rgn.callsym"; };
