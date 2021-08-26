@@ -218,8 +218,5 @@ public:
 // create interface for call/jmp
 // https://mlir.llvm.org/docs/Interfaces/#attributeoperationtype-interfaces
 
-std::unique_ptr<mlir::Pass> createScfToRgnPass();
-void registerScfToRgnPass();
-
 std::unique_ptr<mlir::Pass> createRgnOptPass();
 void registerRgnOptPass();
