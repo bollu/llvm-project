@@ -1,7 +1,9 @@
 #pragma once
+#include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OpDefinition.h"
+#include "mlir/IR/OpImplementation.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
 #include "mlir/Pass/Pass.h"
 
@@ -26,7 +28,9 @@ public:
 
   template <typename ValsT>
   static void build(mlir::OpBuilder &builder, mlir::OperationState &state,
-                    ValsT v);
+                    ValsT vs) {
+    state.addOperands(vs);
+  }
 
   void print(mlir::OpAsmPrinter &p);
 };
@@ -34,7 +38,8 @@ public:
 class RgnEndOp
     : public mlir::Op<RgnEndOp, mlir::OpTrait::ZeroResult,
                       mlir::OpTrait::ZeroSuccessor, mlir::OpTrait::ReturnLike,
-                      mlir::OpTrait::ZeroOperands, mlir::OpTrait::IsTerminator> {
+                      mlir::OpTrait::ZeroOperands,
+                      mlir::OpTrait::IsTerminator> {
 public:
   using Op::Op;
   static llvm::StringRef getOperationName() { return "rgn.end"; };
@@ -46,8 +51,6 @@ public:
   static void build(mlir::OpBuilder &builder, mlir::OperationState &state);
   void print(mlir::OpAsmPrinter &p);
 };
-
-
 
 class RgnValOp
     : public mlir::Op<RgnValOp, mlir::OpTrait::ZeroOperands,
@@ -78,7 +81,12 @@ public:
 
   template <typename RangeT>
   static void build(mlir::OpBuilder &builder, mlir::OperationState &state,
-                    RangeT ts);
+                    RangeT ts) {
+    mlir::Region *rnew = state.addRegion();
+    mlir::BlockAndValueMapping mapping;
+    //  r->cloneInto(rnew, mapping);
+    state.addTypes(ts);
+  }
 
   mlir::Region *region();
 
@@ -143,7 +151,11 @@ public:
 
   template <typename ValsT, typename TypesT>
   static void build(mlir::OpBuilder &builder, mlir::OperationState &state,
-                    mlir::Value rgn, ValsT args, TypesT rettys);
+                    mlir::Value rgn, ValsT args, TypesT rettys) {
+    state.addOperands(rgn);
+    state.addOperands(args);
+    state.addTypes(rettys);
+  }
 };
 
 // call a symbol.

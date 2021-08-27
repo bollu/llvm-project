@@ -78,11 +78,10 @@ void RgnReturnOp::print(mlir::OpAsmPrinter &p) {
   p.printGenericOp(this->getOperation());
 }
 
-template <typename ValsT>
-void RgnReturnOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
-                        ValsT vs) {
-  state.addOperands(vs);
-}
+// template <typename ValsT>
+// void RgnReturnOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
+//                         mlir::SmallVectorImpl<mlir::Value> &vs) {
+// }
 
 // RGN OPS::RgnReturnOp
 // RGN OPS::RgnReturnOp
@@ -114,14 +113,14 @@ void RgnValOp::print(mlir::OpAsmPrinter &p) {
   p.printGenericOp(this->getOperation());
 }
 
-template <typename RangeT>
-void RgnValOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
-                     RangeT ts) {
-  mlir::Region *rnew = state.addRegion();
-  mlir::BlockAndValueMapping mapping;
-  //  r->cloneInto(rnew, mapping);
-  state.addTypes(ts);
-}
+// template <typename RangeT>
+// void RgnValOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
+//                      RangeT ts) {
+//   mlir::Region *rnew = state.addRegion();
+//   mlir::BlockAndValueMapping mapping;
+//   //  r->cloneInto(rnew, mapping);
+//   state.addTypes(ts);
+// }
 
 void RgnValOp::getSuccessorRegions(
     mlir::Optional<unsigned> index, mlir::ArrayRef<mlir::Attribute> operands,
@@ -150,13 +149,13 @@ void RgnSymOp::print(mlir::OpAsmPrinter &p) {
 // RGN OPS::RgnCallValOp
 // RGN OPS::RgnCallValOp
 // RGN OPS::RgnCallValOp
-template <typename ValsT, typename TypesT>
-void RgnCallValOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
-                         mlir::Value rgn, ValsT args, TypesT resultTypes) {
-  state.addOperands(rgn);
-  state.addOperands(args);
-  state.addTypes(resultTypes);
-}
+// template <typename ValsT, typename TypesT>
+// void RgnCallValOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
+//                          mlir::Value rgn, ValsT args, TypesT resultTypes) {
+//   state.addOperands(rgn);
+//   state.addOperands(args);
+//   state.addTypes(resultTypes);
+// }
 
 mlir::ParseResult RgnCallValOp::parse(mlir::OpAsmParser &parser,
                                       mlir::OperationState &result) {
