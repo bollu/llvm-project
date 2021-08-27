@@ -31,6 +31,24 @@ public:
   void print(mlir::OpAsmPrinter &p);
 };
 
+class RgnEndOp
+    : public mlir::Op<RgnEndOp, mlir::OpTrait::ZeroResult,
+                      mlir::OpTrait::ZeroSuccessor, mlir::OpTrait::ReturnLike,
+                      mlir::OpTrait::ZeroOperands, mlir::OpTrait::IsTerminator> {
+public:
+  using Op::Op;
+  static llvm::StringRef getOperationName() { return "rgn.end"; };
+
+  // Type getType() { return this->getInput().getType(); }
+  static mlir::ParseResult parse(mlir::OpAsmParser &parser,
+                                 mlir::OperationState &result);
+
+  static void build(mlir::OpBuilder &builder, mlir::OperationState &state);
+  void print(mlir::OpAsmPrinter &p);
+};
+
+
+
 class RgnValOp
     : public mlir::Op<RgnValOp, mlir::OpTrait::ZeroOperands,
                       mlir::OpTrait::OneResult, mlir::OpTrait::OneRegion,

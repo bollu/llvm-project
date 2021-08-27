@@ -53,7 +53,7 @@ RgnDialect::RgnDialect(mlir::MLIRContext *context)
     // addOperations<RgnReturnOp, RgnSymOp, RgnValOp, RgnCallSymOp, RgnCallValOp, RgnJumpSymOp, RgnJumpValOp
     // >();
     addOperations<RgnReturnOp, RgnSymOp, RgnValOp, RgnCallSymOp
-    , RgnCallValOp, RgnJumpSymOp, RgnJumpValOp>();
+    , RgnCallValOp, RgnJumpSymOp, RgnJumpValOp, RgnEndOp>();
 
     // addAttributes<DataConstructorAttr>();
     // addInterfaces<HaskInlinerInterface>();
@@ -82,6 +82,21 @@ template <typename ValsT>
 void RgnReturnOp::build(mlir::OpBuilder &builder, mlir::OperationState &state,
                         ValsT vs) {
   state.addOperands(vs);
+}
+
+// RGN OPS::RgnReturnOp
+// RGN OPS::RgnReturnOp
+// RGN OPS::RgnReturnOp
+// RGN OPS::RgnReturnOp
+// RGN OPS::RgnReturnOp
+
+mlir::ParseResult RgnEndOp::parse(mlir::OpAsmParser &parser,
+                                     mlir::OperationState &result) {
+  assert(false && "unimplemented");
+}
+
+void RgnEndOp::print(mlir::OpAsmPrinter &p) {
+  p.printGenericOp(this->getOperation());
 }
 
 // RGN OPS::RgnValOp
