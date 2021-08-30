@@ -331,14 +331,18 @@ void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
   this->Op2Node.clear();
 
   op->walk([&](mlir::FuncOp f) {
-    DT *dt = new DT;
+    DT *dt = new DT();
     auto dominanceInfo = std::make_unique<base>();
 
     if (!IsPostDom) {
       processOpDom(dt, this->R2EntryExit, this->Block2EntryExit, this->Op2Node,
                    f);
+      assert(this->R2EntryExit.count(&f.getRegion()));
       dt->entry = this->R2EntryExit[&f.getRegion()].first;
-      dominanceInfo->recalculate(*dt);
+      assert(dt->entry);
+      llvm::errs() << "trying recalculate...\n";
+      // dominanceInfo->recalculate(*dt);
+      llvm::errs() << "\n\tSUCCESS!\n";
       if (DEBUG) {
         llvm::dbgs() << "\n\n@@@@processing function.. |" << f << "\n";
       }
