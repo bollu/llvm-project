@@ -2669,7 +2669,8 @@ simplifySwitchFromDefaultSwitchOnSameCondition(SwitchOp op,
   return success();
 }
 
-// void SwitchOp::getCanonicalizationPatterns(OwningRewritePatternList &patterns,
+// void SwitchOp::getCanonicalizationPatterns(OwningRewritePatternList
+// &patterns,
 //                                            MLIRContext *context) {
 // }
 
