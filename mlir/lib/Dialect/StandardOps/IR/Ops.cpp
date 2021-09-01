@@ -2669,15 +2669,9 @@ simplifySwitchFromDefaultSwitchOnSameCondition(SwitchOp op,
   return success();
 }
 
-void SwitchOp::getCanonicalizationPatterns(RewritePatternSet &results,
-                                           MLIRContext *context) {
-  results.add(&simplifySwitchWithOnlyDefault)
-      .add(&dropSwitchCasesThatMatchDefault)
-      .add(&simplifyConstSwitchValue)
-      .add(&simplifyPassThroughSwitch)
-      .add(&simplifySwitchFromSwitchOnSameCondition)
-      .add(&simplifySwitchFromDefaultSwitchOnSameCondition);
-}
+// void SwitchOp::getCanonicalizationPatterns(OwningRewritePatternList &patterns,
+//                                            MLIRContext *context) {
+// }
 
 //===----------------------------------------------------------------------===//
 // TruncateIOp

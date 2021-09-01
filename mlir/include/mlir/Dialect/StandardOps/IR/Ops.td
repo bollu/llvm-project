@@ -2110,7 +2110,7 @@ def SwitchOp : Std_Op<"switch",
     MutableOperandRange getCaseOperandsMutable(unsigned index);
   }];
 
-  let hasCanonicalizer = 1;
+  // let hasCanonicalizer = 1;
 }
 
 //===----------------------------------------------------------------------===//
