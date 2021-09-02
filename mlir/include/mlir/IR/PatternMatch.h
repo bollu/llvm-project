@@ -697,6 +697,9 @@ class IRRewriter : public RewriterBase {
 public:
   explicit IRRewriter(MLIRContext *ctx) : RewriterBase(ctx) {}
   explicit IRRewriter(const OpBuilder &builder) : RewriterBase(builder) {}
+  Block *cloneRegionBeforeAndReturnEntry(Region &region, Region &parent,
+                         Region::iterator before);
+
 };
 
 //===----------------------------------------------------------------------===//

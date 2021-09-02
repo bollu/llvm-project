@@ -118,6 +118,53 @@ void Region::cloneInto(Region *dest, Region::iterator destPos,
     it->walk(remapOperands);
 }
 
+Block *Region::cloneIntoAndReturnEntry(Region *dest, Region::iterator destPos,
+                 BlockAndValueMapping &mapper) {
+  assert(dest && "expected valid region to clone into");
+  assert(this != dest && "cannot clone region into itself");
+
+  // If the list is empty there is nothing to clone.
+  if (empty())
+    return nullptr;
+
+  Block *oldEntry = &this->blocks.front();
+  Block *newEntry = nullptr;
+  for (Block &block : *this) {
+    Block *newBlock = new Block();
+    if (&block == oldEntry) {newEntry = newBlock; }
+    mapper.map(&block, newBlock);
+
+    // Clone the block arguments. The user might be deleting arguments to the
+    // block by specifying them in the mapper. If so, we don't add the
+    // argument to the cloned block.
+    for (auto arg : block.getArguments())
+      if (!mapper.contains(arg))
+        mapper.map(arg, newBlock->addArgument(arg.getType()));
+
+    // Clone and remap the operations within this block.
+    for (auto &op : block)
+      newBlock->push_back(op.clone(mapper));
+
+    dest->getBlocks().insert(destPos, newBlock);
+  }
+
+  // Now that each of the blocks have been cloned, go through and remap the
+  // operands of each of the operations.
+  auto remapOperands = [&](Operation *op) {
+    for (auto &operand : op->getOpOperands())
+      if (auto mappedOp = mapper.lookupOrNull(operand.get()))
+        operand.set(mappedOp);
+    for (auto &succOp : op->getBlockOperands())
+      if (auto *mappedOp = mapper.lookupOrNull(succOp.get()))
+        succOp.set(mappedOp);
+  };
+
+  for (iterator it(mapper.lookup(&front())); it != destPos; ++it)
+    it->walk(remapOperands);
+  return newEntry;
+}
+
+
 /// Returns 'block' if 'block' lies in this region, or otherwise finds the
 /// ancestor of 'block' that lies in this region. Returns nullptr if the latter
 /// fails.

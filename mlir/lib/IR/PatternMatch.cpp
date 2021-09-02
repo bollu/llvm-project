@@ -311,3 +311,10 @@ void RewriterBase::cloneRegionBefore(Region &region, Region &parent,
 void RewriterBase::cloneRegionBefore(Region &region, Block *before) {
   cloneRegionBefore(region, *before->getParent(), before->getIterator());
 }
+
+
+Block *IRRewriter::cloneRegionBeforeAndReturnEntry(Region &region, Region &parent,
+                                     Region::iterator before) {
+  BlockAndValueMapping mapping;
+  region.cloneIntoAndReturnEntry(&parent, before, mapping);
+}

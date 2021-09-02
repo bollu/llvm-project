@@ -214,6 +214,8 @@ public:
   /// Clone this region into 'dest' before the given position in 'dest'.
   void cloneInto(Region *dest, Region::iterator destPos,
                  BlockAndValueMapping &mapper);
+  Block *cloneIntoAndReturnEntry(Region *dest, Region::iterator destPos,
+                 BlockAndValueMapping &mapper);
 
   /// Takes body of another region (that region will have no body after this
   /// operation completes).  The current body of this region is cleared.
