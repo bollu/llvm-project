@@ -316,5 +316,5 @@ void RewriterBase::cloneRegionBefore(Region &region, Block *before) {
 Block *IRRewriter::cloneRegionBeforeAndReturnEntry(Region &region, Region &parent,
                                      Region::iterator before) {
   BlockAndValueMapping mapping;
-  region.cloneIntoAndReturnEntry(&parent, before, mapping);
+  return region.cloneIntoAndReturnEntry(&parent, before, mapping);
 }
