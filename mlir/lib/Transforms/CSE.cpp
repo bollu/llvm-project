@@ -193,7 +193,8 @@ void CSE::simplifyRegion(ScopedMapTy &knownValues, Region &region) {
   if (region.empty())
     return;
 
-  bool hasSSADominance = domInfo->hasSSADominance(&region);
+  // bool hasSSADominance = domInfo->hasSSADominance(&region);
+  bool hasSSADominance = false; /*conservative*/
 
   // If the region only contains one block, then simplify it directly.
   if (region.hasOneBlock()) {
@@ -226,7 +227,9 @@ void CSE::simplifyRegion(ScopedMapTy &knownValues, Region &region) {
     // Check to see if we need to process this node.
     if (!currentNode->processed) {
       currentNode->processed = true;
-      simplifyBlock(knownValues, currentNode->node->getBlock(),
+      // Block *currentBlock = currentNode->node->getBlock();
+      Block *currentBlock = nullptr;
+      simplifyBlock(knownValues, currentBlock,
                     hasSSADominance);
     }
 

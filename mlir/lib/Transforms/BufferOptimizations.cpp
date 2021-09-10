@@ -199,10 +199,14 @@ private:
       if (!currentBlock->isEntryBlock())
         idom = dominators.getNode(currentBlock)->getIDom();
 
-      if (idom && dominators.properlyDominates(parentBlock, idom->getBlock())) {
+      // bool does_dominate = dominators.properlyDominates(parentBlock, idom->getBlock();
+      bool does_dominate = false;
+
+      if (idom && does_dominate) {
         // If the current immediate dominator is below the placement block, move
         // to the immediate dominator block.
-        currentBlock = idom->getBlock();
+        // currentBlock = idom->getBlock();
+        currentBlock = nullptr;
         state.recordMoveToDominator(currentBlock);
       } else {
         // We have to move to our parent block since an immediate dominator does
