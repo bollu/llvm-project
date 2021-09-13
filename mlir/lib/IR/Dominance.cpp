@@ -54,7 +54,7 @@ static bool hasSSADominance(Operation *op, unsigned index) {
          (!kindInterface || kindInterface.hasSSADominance(index));
 }
 
-const int DEBUG = 0;
+const int DEBUG = 1;
 #define DEBUG_TYPE "dom"
 
 using llvm::dbgs;
@@ -77,14 +77,16 @@ void DT::debug_print(llvm::raw_ostream &os) const {
 // DTNode
 //===----------------------------------------------------------------------===//
 
-void DTNode::print(llvm::raw_ostream &os) {
+int DTNode::Count = 0;
+
+void DTNode::print(llvm::raw_ostream &os) const {
   switch (this->kind) {
   case Kind::DTBlock:
-    os << this << " ";
-    os << "bb[" << b << "\n";
+    os << this << " [ix|" << this->DebugIndex << "] ";
+    os << "[bb|" << b << "\n";
     b->print(os);
     os << "]";
-    break;
+    return;
     // case Kind::DTExit:
     //   os << this << " ";
     //   os << "exit-region["
@@ -93,17 +95,23 @@ void DTNode::print(llvm::raw_ostream &os) {
     //   break;
 
   case Kind::DTOpExit:
-    os << this << " ";
-    os << "exit-op[\n" << *op << "]";
-    break;
+    os << this << " [ix|" << this->DebugIndex << "] ";
+    os << "[exit-op|\n" << *op << "]";
+    return;
+
+  case Kind::DTToplevelEntry:
+    os << this << " [ix:|" << this->DebugIndex << "] [entry]";
+    return;
   }
 
+  assert(false && "unknown type of node");
   // if (this->successors.size()) { os << "\n"; }
   // for (DTNode *succ : this->successors) {
   //   succ->print(os, indent + 2);
   //   os << "\n";
   // }
 }
+
 
 //===----------------------------------------------------------------------===//
 // DominanceInfoBase
@@ -235,12 +243,12 @@ void processRegionDom(
   for (mlir::Block &B : *R) {
     // "entry node" for this block.
     DTNode *BNode = DTNode::newBlock(&B, dt);
-    dt->Nodes.push_back(BNode);
     Block2EntryExit[&B].first = Block2EntryExit[&B].second = BNode;
   }
 
   Block &EntryBlock = R->getBlocks().front();
   DTNode *RegionEntryNode = Block2EntryExit[&EntryBlock].first;
+  assert(RegionEntryNode);
 
   R2EntryExit[R] = {RegionEntryNode, ParentOpExit};
 
@@ -252,14 +260,14 @@ void processRegionDom(
     for (Operation &Op : B) {
       // Step 1a: ecursively process regions.
       const int numRegions = Op.getNumRegions();
-      DTNode *OpDominator = Block2EntryExit[&B].second;
-      Op2Dominator[&Op] = OpDominator;
+      DTNode *OpParent = Block2EntryExit[&B].second;
+      Op2Dominator[&Op] = OpParent;
       if (numRegions > 0) {
         DTNode *OpExit = DTNode::newOpExit(&Op, dt);
         for (int i = 0; i < numRegions; i++) {
           Region &R = Op.getRegion(i);
           processRegionDom(dt, R2EntryExit, Block2EntryExit, Op2Dominator,
-                           OpDominator, OpExit, &R);
+                           OpParent, OpExit, &R);
         }
         // current final dominating thing is OpExit
         Block2EntryExit[&B].second = OpExit;
@@ -304,7 +312,7 @@ void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
 
   // op->walk([&](mlir::FuncOp f) {
   DT *dt = new DT();
-  auto dominanceInfo = std::make_unique<DTBaseT>();
+  auto dtBase = std::make_unique<DTBaseT>();
 
   if (!IsPostDom) {
     DTNode *toplevelEntry = DTNode::newToplevelEntry(op, dt);
@@ -317,10 +325,14 @@ void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
       processRegionDom(dt, this->R2EntryExit, this->Block2EntryExit,
                        this->Op2Node, toplevelEntry, toplevelExit, &r);
     }
+
     llvm::errs() << "trying recalculate...\n";
-    dominanceInfo->recalculate(*dt);
-    llvm::errs() << "\n\tSUCCESS!\n";
-    this->tree = dominanceInfo.get();
+    dtBase->recalculate(*dt);
+    llvm::errs() << "\nSUCCESS!\n";
+    this->tree = dtBase.get();
+    llvm::errs() << "\nRECALCULATED tree: |" << this->tree << "|\n";
+    getchar();
+
     // if (DEBUG) {
     //   llvm::dbgs() << "\n\n@@@@processing function.. |" << f << "\n";
     // }
@@ -336,10 +348,10 @@ void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
     // }
   }
 
-  for (int i = 0; i < dt->Nodes.size(); ++i) {
-    // dt->Nodes[i]->Info = dominanceInfo.get();
-    dt->Nodes[i]->DebugIndex = i;
-  }
+  // for (int i = 0; i < dt->Nodes.size(); ++i) {
+  //   // dt->Nodes[i]->Info = dominanceInfo.get();
+  //   dt->Nodes[i]->DebugIndex = i;
+  // }
 
   if (DEBUG) {
 
@@ -347,39 +359,32 @@ void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
       for (int j = 0; j < dt->Nodes.size(); ++j) {
         llvm::dbgs() << "dominates(" << i << " " << j
                      << ", isPostDom:" << IsPostDom << ") = "
-                     << dominanceInfo->dominates(dt->Nodes[i], dt->Nodes[j])
+                     << dtBase->dominates(dt->Nodes[i], dt->Nodes[j])
                      << "\n";
       }
     }
 
     for (int i = 0; i < dt->Nodes.size(); ++i) {
-      llvm::dbgs() << "\n##" << i << (dt->entry == dt->Nodes[i] ? " ENTRY" : "")
+      llvm::dbgs() << "\n##" << (dt->entry == dt->Nodes[i] ? " ENTRY" : "")
                    << ":\n";
       dt->Nodes[i]->print(llvm::dbgs());
       llvm::dbgs() << "\n==\n";
     }
 
-    std::map<DTNode *, int> node2ix;
-    for (int i = 0; i < dt->Nodes.size(); ++i) {
-      node2ix[dt->Nodes[i]] = i;
-    }
-
     llvm::dbgs() << "edges:\n";
     for (int i = 0; i < dt->Nodes.size(); ++i) {
       for (int j = 0; j < dt->Nodes[i]->successors.size(); ++j) {
-        llvm::dbgs() << i << " -> " << node2ix[dt->Nodes[i]->successors[j]]
+        llvm::dbgs() << dt->Nodes[i]->DebugIndex << " -> " << dt->Nodes[i]->successors[j]->DebugIndex
                      << "\n";
       }
     }
 
-    // int FD;
-    // llvm::sys::fs::openFileForWrite(
-    //     "/home/bollu/temp/" + f.getName() + "-graph.dot", FD);
-    // llvm::raw_fd_ostream O(FD, /*shouldClose=*/true);
-    // llvm::WriteGraph(O, dt);
+    int FD;
+    llvm::sys::fs::openFileForWrite(
+        "/home/bollu/temp/graph.dot", FD);
+    llvm::raw_fd_ostream O(FD, /*shouldClose=*/true);
+    llvm::WriteGraph(O, dt);
   }
-  // func2Dominance.insert({f.getOperation(), std::move(dominanceInfo)});
-  // });
 }
 
 /// Walks up the list of containers of the given block and calls the
@@ -389,6 +394,7 @@ void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
 /// otherwise.
 template <typename FuncT>
 Block *traverseAncestors(Block *block, const FuncT &func) {
+  assert(false);
   // assert(false && "unimplemented");
   // // Invoke the user-defined traversal function in the beginning for the current
   // // block.
@@ -418,9 +424,37 @@ template <bool IsPostDom>
 Block *
 DominanceInfoBase<IsPostDom>::findNearestCommonDominator(Block *a,
                                                          Block *b) const {
+    DTNode *na = [&]() -> DTNode* {
+      auto it = this->Block2EntryExit.find(a);
+      if (it == this->Block2EntryExit.end()) {
+        return nullptr;
+      }  else {
+        return it->second.first;
+      }
+    }();
 
-    assert(false && "unimplemented");
+    DTNode *nb = [&]() -> DTNode* {
+      auto it = this->Block2EntryExit.find(b);
+      if (it == this->Block2EntryExit.end()) {
+        return nullptr;
+      }  else {
+        return it->second.first;
+      }
+    }();
 
+    if (!na || !nb) { return nullptr; }
+
+    llvm::errs() << "findNearestCommonDominator(na:" << *na << " " <<
+      na->DebugIndex << ", nb:" << *nb << " " << nb->DebugIndex << ", tree: " << this->tree << ")\n";
+    assert(na); assert(nb);
+
+    DTNode *nearest = tree->findNearestCommonDominator(na, nb);
+    assert(nearest->kind != DTNode::Kind::DTToplevelEntry);
+    if (nearest->kind == DTNode::Kind::DTBlock) {
+      return nearest->getBlock();
+    } else {
+      return nearest->getOp()->getBlock();
+    }
 }
 
 template <bool IsPostDom>
@@ -478,7 +512,7 @@ bool properlyDominatesReal(llvm::DominatorTreeBase<DTNode, false> *tree, DTNode 
   else if (a->kind == DTNode::Kind::DTBlock) {
     // if `b` is a block, then it's not `a` (since we've already checked). So dom => properly dom.
     // if `b` is an op, then the DTNode could be `a` (since it's an op), but a block dominantes all ops in it, so properly d
-    tree->dominates(a, b);
+    return tree->dominates(a, b);
   }
   else {
     // we setup dominance correctly

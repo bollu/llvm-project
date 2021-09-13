@@ -44,12 +44,13 @@ struct DT {
 
 struct DTNode {
   // void *Info = nullptr; // pointer to dominance info data structure.
-  int DebugIndex = -42; // index used for debugging.
+  int DebugIndex = 0; // index used for debugging.
+  static int Count;
 
   enum class Kind {
     DTBlock,
     // DTExit,
-    DTOpExit, // node for an operation that implies region semantics.
+    DTOpExit,        // node for an operation that implies region semantics.
     DTToplevelEntry, // top level entry node.
   };
 
@@ -101,7 +102,6 @@ struct DTNode {
     return node;
   }
 
-
   DT *getParent() { return parent; }
 
   void printAsOperand(llvm::raw_ostream &os, bool printType = true) {
@@ -111,19 +111,30 @@ struct DTNode {
   DTNode(const DTNode &other) = default;
   // explicit DTNode() = default;
 
-  void print(llvm::raw_ostream &os);
+  void print(llvm::raw_ostream &os) const;
 
   mlir::Block *getBlock() {
     assert(this->kind == Kind::DTBlock);
     return this->b;
   }
 
+  mlir::Operation *getOp() {
+    assert(this->kind == Kind::DTOpExit);
+    return this->op;
+  }
+
 private:
-  DTNode(DT *parent) : parent(parent) {}
+  DTNode(DT *parent) : parent(parent), DebugIndex(++Count) {
+    parent->Nodes.push_back(this);
+  }
   DT *parent = nullptr;
   mlir::Block *b = nullptr;
   mlir::Operation *op = nullptr;
 };
+
+inline llvm::raw_ostream &operator << (llvm::raw_ostream &os, const DTNode &node) {
+  node.print(os); return os;
+}
 
 namespace llvm {
 template <>
@@ -155,6 +166,12 @@ struct GraphTraits<DT *> : public GraphTraits<DTNode *> {
   using nodes_iterator = DT::NodesT::iterator;
   static nodes_iterator nodes_begin(DT *base) { return base->Nodes.begin(); }
   static nodes_iterator nodes_end(DT *base) { return base->Nodes.end(); }
+
+  static std::string getNodeIdentifierLabel(const DTNode *Node,
+                                            const DT *Graph) {
+    return std::to_string(Node->DebugIndex);
+  }
+
 };
 } // namespace llvm
 
@@ -195,6 +212,13 @@ struct GraphTraits<Inverse<DT *>> : public GraphTraits<Inverse<DTNode *>> {
   static nodes_iterator nodes_end(Inverse<DT *> dt) {
     return nodes_iterator(dt.Graph->Nodes.end());
   }
+
+  static std::string getNodeIdentifierLabel(const DTNode *Node,
+                                            const DT *Graph) {
+    return std::to_string(Node->DebugIndex);
+  }
+
+
 };
 
 } // namespace llvm
@@ -225,6 +249,8 @@ public:
   /// Finds the nearest common dominator block for the two given blocks a
   /// and b. If no common dominator can be found, this function will return
   /// nullptr.
+  // TODO: this will change, since we can have nearest common dominator to be an
+  // Op.
   Block *findNearestCommonDominator(Block *a, Block *b) const;
 
   /// Return true if there is dominanceInfo for the given region.
