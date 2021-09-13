@@ -14,6 +14,7 @@
 #include "mlir/IR/Value.h"
 #include "mlir/Support/LLVM.h"
 #include "llvm/ADT/GraphTraits.h"
+#include "llvm/ExecutionEngine/JITLink/x86_64.h"
 #include "llvm/Support/GenericDomTree.h"
 #include "llvm/Support/raw_ostream.h"
 #include <memory>
@@ -47,8 +48,9 @@ struct DTNode {
 
   enum class Kind {
     DTBlock,
-    DTExit,
-    DTOp, // node for an operation that implies region semantics.
+    // DTExit,
+    DTOpExit, // node for an operation that implies region semantics.
+    DTToplevelEntry, // top level entry node.
   };
 
   DTNode::Kind kind;
@@ -78,19 +80,27 @@ struct DTNode {
     return node;
   }
 
-  static DTNode *newExit(mlir::Region *r, DT *parent) {
+  // static DTNode *newExit(mlir::Region *r, DT *parent) {
+  //   DTNode *node = new DTNode(parent);
+  //   node->r = r;
+  //   node->kind = Kind::DTExit;
+  //   return node;
+  // }
+
+  static DTNode *newOpExit(mlir::Operation *op, DT *parent) {
     DTNode *node = new DTNode(parent);
-    node->r = r;
-    node->kind = Kind::DTExit;
+    node->op = op;
+    node->kind = Kind::DTOpExit;
     return node;
   }
 
-  static DTNode *newOp(mlir::Operation *op, DT *parent) {
+  static DTNode *newToplevelEntry(mlir::Operation *op, DT *parent) {
     DTNode *node = new DTNode(parent);
     node->op = op;
-    node->kind = Kind::DTOp;
+    node->kind = Kind::DTToplevelEntry;
     return node;
   }
+
 
   DT *getParent() { return parent; }
 
@@ -245,10 +255,10 @@ protected:
   DenseMap<Region *, std::unique_ptr<base>> dominanceInfos;
 
   // a mapping from parent regions to child regions which they dominate
-  DenseMap<Region *, SmallVector<Region *, 4>> domParent2Children;
-  DenseMap<Region *, Region *> domChild2Parent;
+  // DenseMap<Region *, SmallVector<Region *, 4>> domParent2Children;
+  // DenseMap<Region *, Region *> domChild2Parent;
 
-  DenseMap<Operation *, std::unique_ptr<base>> func2Dominance;
+  // DenseMap<Operation *, std::unique_ptr<base>> func2Dominance;
 
   // std::unique_ptr<base> dominanceInfo;
   // DT *dt;
@@ -310,9 +320,7 @@ public:
   /// block in that kind of region.  In an SSACFG region, block A dominates
   /// block B if all control flow paths from the entry block to block B flow
   /// through block A. In a Graph region, all blocks dominate all other blocks.
-  bool properlyDominates(Block *a, Block *b) const {
-    return super::properlyDominates(a, b);
-  }
+  bool properlyDominates(Block *a, Block *b) const;
 
   /// Update the internal DFS numbers for the dominance nodes.
   void updateDFSNumbers();

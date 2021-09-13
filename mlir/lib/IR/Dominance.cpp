@@ -83,16 +83,16 @@ void DTNode::print(llvm::raw_ostream &os) {
     b->print(os);
     os << "]";
     break;
-  case Kind::DTExit:
-    os << this << " ";
-    os << "exit-region["
-       << "\n"
-       << *r->getParentOp() << "]";
-    break;
+    // case Kind::DTExit:
+    //   os << this << " ";
+    //   os << "exit-region["
+    //      << "\n"
+    //      << *r->getParentOp() << "]";
+    //   break;
 
-  case Kind::DTOp:
+  case Kind::DTOpExit:
     os << this << " ";
-    os << "op[\n" << *op << "]";
+    os << "exit-op[\n" << *op << "]";
     break;
   }
 
@@ -107,41 +107,39 @@ void DTNode::print(llvm::raw_ostream &os) {
 // DominanceInfoBase
 //===----------------------------------------------------------------------===//
 
-bool isRunRegionOp(Operation *op) { return false; }
+// bool isRunRegionOp(Operation *op) { return false; }
 
-void processRegionDom(
-    DT *dt, DenseMap<Region *, std::pair<DTNode *, DTNode *>> &R2EntryExit,
-    DenseMap<mlir::Block *, std::pair<DTNode *, DTNode *>> &Block2Node,
-    DenseMap<Operation *, DTNode *> &Op2Node, Region *r);
+// void processRegionDom(
+//     DT *dt, DenseMap<Region *, std::pair<DTNode *, DTNode *>> &R2EntryExit,
+//     DenseMap<mlir::Block *, std::pair<DTNode *, DTNode *>> &Block2Node,
+//     DenseMap<Operation *, DTNode *> &Op2Node, Region *r);
 
-void processOpDom(
-    DT *dt, DenseMap<Region *, std::pair<DTNode *, DTNode *>> &R2EntryExit,
-    DenseMap<mlir::Block *, std::pair<DTNode *, DTNode *>> &Block2Node,
-    DenseMap<Operation *, DTNode *> &Op2Node, Operation *op) {
-  const int numRegions = op->getNumRegions();
-  for (int i = 0; i < numRegions; i++) {
-    Region &R = op->getRegion(i);
-    processRegionDom(dt, R2EntryExit, Block2Node, Op2Node, &R);
-  }
-}
+// void processOpDom(
+//     DT *dt, DenseMap<Region *, std::pair<DTNode *, DTNode *>> &R2EntryExit,
+//     DenseMap<mlir::Block *, std::pair<DTNode *, DTNode *>> &Block2Node,
+//     DenseMap<Operation *, DTNode *> &Op2Node, Operation *op) {
+//   const int numRegions = op->getNumRegions();
+//   for (int i = 0; i < numRegions; i++) {
+//     Region &R = op->getRegion(i);
+//     processRegionDom(dt, R2EntryExit, Block2Node, Op2Node, &R);
+//   }
+// }
 
-void processRegionPostDom(
-    DT *dt, DenseMap<Region *, std::pair<DTNode *, DTNode *>> &R2EntryExit,
-    DenseMap<mlir::Block *, std::pair<DTNode *, DTNode *>> &Block2Node,
-    DenseMap<Operation *, DTNode *> &Op2Node, Region *r);
+// void processRegionPostDom(
+//     DT *dt, DenseMap<Region *, std::pair<DTNode *, DTNode *>> &R2EntryExit,
+//     DenseMap<mlir::Block *, std::pair<DTNode *, DTNode *>> &Block2Node,
+//     DenseMap<Operation *, DTNode *> &Op2Node, Region *r);
 
-void processOpPostDom(
-    DT *dt, DenseMap<Region *, std::pair<DTNode *, DTNode *>> &R2EntryExit,
-    DenseMap<mlir::Block *, std::pair<DTNode *, DTNode *>> &Block2Node,
-    DenseMap<Operation *, DTNode *> &Op2Node, Operation *op) {
-  const int numRegions = op->getNumRegions();
-  for (int i = 0; i < numRegions; i++) {
-    Region &R = op->getRegion(i);
-    processRegionPostDom(dt, R2EntryExit, Block2Node, Op2Node, &R);
-  }
-}
-
-
+// void processOpPostDom(
+//     DT *dt, DenseMap<Region *, std::pair<DTNode *, DTNode *>> &R2EntryExit,
+//     DenseMap<mlir::Block *, std::pair<DTNode *, DTNode *>> &Block2Node,
+//     DenseMap<Operation *, DTNode *> &Op2Node, Operation *op) {
+//   const int numRegions = op->getNumRegions();
+//   for (int i = 0; i < numRegions; i++) {
+//     Region &R = op->getRegion(i);
+//     processRegionPostDom(dt, R2EntryExit, Block2Node, Op2Node, &R);
+//   }
+// }
 
 void getRegionsFromValue(Value v, std::set<mlir::Region *> &out) {
   assert(!v.dyn_cast<BlockArgument>() &&
@@ -150,20 +148,22 @@ void getRegionsFromValue(Value v, std::set<mlir::Region *> &out) {
   // if (RgnValOp val = v.getDefiningOp<RgnValOp>()) {
   //   out.insert(&val.getRegion());
   // } else {
-    Operation *op = v.getDefiningOp();
-    assert(op && "value that is not a block argument must be an op!");
-    for (mlir::Value operand : op->getOperands()) {
-      getRegionsFromValue(operand, out);
-    }
+  Operation *op = v.getDefiningOp();
+  assert(op && "value that is not a block argument must be an op!");
+  for (mlir::Value operand : op->getOperands()) {
+    getRegionsFromValue(operand, out);
+  }
   // }
 }
-
 
 void processRegionPostDom(
     DT *dt, DenseMap<Region *, std::pair<DTNode *, DTNode *>> &R2EntryExit,
     DenseMap<mlir::Block *, std::pair<DTNode *, DTNode *>> &Block2Node,
-    DenseMap<Operation *, DTNode *> &Op2Node, mlir::Region *R) {
+    DenseMap<Operation *, DTNode *> &Op2Node, mlir::Region *R,
+    DTNode *ParentOpExit) {
 
+  assert(false && "have not thought about this");
+  /*
   assert(R->getBlocks().size() > 0);
   // for each block, create entry/exit nodes.
   for (mlir::Block &B : *R) {
@@ -175,10 +175,10 @@ void processRegionPostDom(
 
   Block &EntryBlock = R->getBlocks().front();
   DTNode *RegionEntry = Block2Node[&EntryBlock].first;
-  DTNode *RegionExit = DTNode::newExit(R, dt);
-  dt->Nodes.push_back(RegionExit);
+  assert(ParentOpExit->kind == DTNode::Kind::DTOpExit);
+  // dt->Nodes.push_back(RegionExit);
 
-  R2EntryExit[R] = {RegionEntry, RegionExit};
+  R2EntryExit[R] = {RegionEntry, ParentOpExit};
 
   for (mlir::Block &B : *R) {
     for (Operation &Op : B) {
@@ -186,13 +186,13 @@ void processRegionPostDom(
       processOpPostDom(dt, R2EntryExit, Block2Node, Op2Node, &Op);
 
       Op2Node[&Op] = Block2Node[&B].second;
-   
+
       // return like op. exit to region exit.
       if (Op.hasTrait<OpTrait::IsTerminator>() &&
           Op.hasTrait<OpTrait::ReturnLike>()) {
         // add edit to exit block of region
         DTNode *ThisExit = Block2Node[&B].second;
-        RegionExit->addSuccessor(ThisExit);
+        // RegionExit->addSuccessor(ThisExit);
         // ThisExit->addSuccessor(RegionExit);
         continue;
       }
@@ -215,16 +215,18 @@ void processRegionPostDom(
       }
     }
   }
+  */
 }
-
-
 
 void processRegionDom(
     DT *dt, DenseMap<Region *, std::pair<DTNode *, DTNode *>> &R2EntryExit,
-    DenseMap<mlir::Block *, std::pair<DTNode *, DTNode *>> &Block2Node,
-    DenseMap<Operation *, DTNode *> &Op2Node, mlir::Region *R) {
+    DenseMap<mlir::Block *, std::pair<DTNode *, DTNode *>> &Block2EntryExit,
+    DenseMap<Operation *, DTNode *> &Op2Dominator, DTNode *ParentOpDominator,
+    DTNode *ParentOpExit, mlir::Region *R) {
 
-  if (R->getBlocks().size() == 0) { return; }
+  if (R->getBlocks().size() == 0) {
+    return;
+  }
 
   assert(R->getBlocks().size() > 0);
   // for each block, create entry/exit nodes.
@@ -232,88 +234,57 @@ void processRegionDom(
     // "entry node" for this block.
     DTNode *BNode = DTNode::newBlock(&B, dt);
     dt->Nodes.push_back(BNode);
-    Block2Node[&B].first = Block2Node[&B].second = BNode;
+    Block2EntryExit[&B].first = Block2EntryExit[&B].second = BNode;
   }
 
   Block &EntryBlock = R->getBlocks().front();
-  DTNode *RegionEntry = Block2Node[&EntryBlock].first;
-  DTNode *RegionExit = DTNode::newExit(R, dt);
-  dt->Nodes.push_back(RegionExit);
+  DTNode *RegionEntryNode = Block2EntryExit[&EntryBlock].first;
 
-  R2EntryExit[R] = {RegionEntry, RegionExit};
+  R2EntryExit[R] = {RegionEntryNode, ParentOpExit};
 
+  // Hack : make dominance lexically scoped for entry.
+  ParentOpDominator->addSuccessor(RegionEntryNode);
+
+  // Step 1: build data structures
   for (mlir::Block &B : *R) {
     for (Operation &Op : B) {
-      // recursively process regions.
-      processOpDom(dt, R2EntryExit, Block2Node, Op2Node, &Op);
-
-      Op2Node[&Op] = Block2Node[&B].second;
-      /*
-      if (RgnCallValOp call = mlir::dyn_cast<RgnCallValOp>(Op)) {
-        // need over-approximation of all regions!
-        // call have call(select(cond, region_l, region_r))
-        std::set<Region *> calledRegions;
-        getRegionsFromValue(call.getFn(), calledRegions);
-
-        DTNode *Cur = Block2Node[&B].second;
-        DTNode *Next = DTNode::newOp(call, dt);
-        dt->Nodes.push_back(Next);
-        for (Region *R : calledRegions) {
-          DTNode *CallEntry = R2EntryExit[R].first;
-          DTNode *CallExit = R2EntryExit[R].second;
-
-          Cur->addSuccessor(CallEntry);
-          CallExit->addSuccessor(Next);
+      // Step 1a: ecursively process regions.
+      const int numRegions = Op.getNumRegions();
+      DTNode *OpDominator = Block2EntryExit[&B].second;
+      Op2Dominator[&Op] = OpDominator;
+      if (numRegions > 0) {
+        DTNode *OpExit = DTNode::newOpExit(&Op, dt);
+        for (int i = 0; i < numRegions; i++) {
+          Region &R = Op.getRegion(i);
+          processRegionDom(dt, R2EntryExit, Block2EntryExit, Op2Dominator,
+                           OpDominator, OpExit, &R);
         }
-        // this is now new final node in block.
-        Block2Node[&B].second = Next;
-        continue;
+        // current final dominating thing is OpExit
+        Block2EntryExit[&B].second = OpExit;
       }
-
-      if (RgnJumpValOp jmp = mlir::dyn_cast<RgnJumpValOp>(Op)) {
-        RgnValOp val = jmp.getFn().getDefiningOp<RgnValOp>();
-        assert(val && "expected RgnJmpVal to point to valid RgnVal");
-        // TODO: handle loops!
-
-        // this is now new final node in block.
-        DTNode *CallEntry = R2EntryExit[&val.getRegion()].first;
-        DTNode *CallExit = R2EntryExit[&val.getRegion()].second;
-
-        DTNode *Cur = Block2Node[&B].second;
-        // DTNode *Next = DTNode::newOp(jmp);
-
-        Cur->addSuccessor(CallEntry);
-        // CallExit->addSuccessor(Next);
-        // vv THINK: does this matter?
-        Block2Node[&B].second = CallExit;
-        continue;
-
-      }
-      */
 
       // return like op. exit to region exit.
       if (Op.hasTrait<OpTrait::IsTerminator>() &&
           Op.hasTrait<OpTrait::ReturnLike>()) {
         // add edit to exit block of region
-        DTNode *ThisExit = Block2Node[&B].second;
-        ThisExit->addSuccessor(RegionExit);
-        continue;
+        DTNode *ThisExit = Block2EntryExit[&B].second;
+        // Hack : make dominance lexically scoped for exit.
+        ThisExit->addSuccessor(ParentOpExit);
       }
 
       // not a return like terminator.
-      if (Op.hasTrait<OpTrait::IsTerminator>() &&
-          !Op.hasTrait<OpTrait::ReturnLike>()) {
+      else if (Op.hasTrait<OpTrait::IsTerminator>() &&
+               !Op.hasTrait<OpTrait::ReturnLike>()) {
         for (BlockOperand &NextB : Op.getBlockOperands()) {
           if (DEBUG) {
             llvm::dbgs() << "creating next block links for |" << Op
                          << "| to: " << NextB.get() << "\n";
             getchar();
           }
-          DTNode *ThisExit = Block2Node[&B].second;
-          DTNode *NextEntry = Block2Node[NextB.get()].first;
+          DTNode *ThisExit = Block2EntryExit[&B].second;
+          DTNode *NextEntry = Block2EntryExit[NextB.get()].first;
           ThisExit->addSuccessor(NextEntry);
         }
-        continue;
       }
     }
   }
@@ -329,137 +300,82 @@ void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
   this->Block2EntryExit.clear();
   this->Op2Node.clear();
 
-  op->walk([&](mlir::FuncOp f) {
-    DT *dt = new DT();
-    auto dominanceInfo = std::make_unique<base>();
+  // op->walk([&](mlir::FuncOp f) {
+  DT *dt = new DT();
+  auto dominanceInfo = std::make_unique<base>();
 
-    if (!IsPostDom) {
-      processOpDom(dt, this->R2EntryExit, this->Block2EntryExit, this->Op2Node,
-                   f);
-      assert(this->R2EntryExit.count(&f.getRegion()));
-      dt->entry = this->R2EntryExit[&f.getRegion()].first;
-      assert(dt->entry);
-      llvm::errs() << "trying recalculate...\n";
-      // dominanceInfo->recalculate(*dt);
-      llvm::errs() << "\n\tSUCCESS!\n";
-      if (DEBUG) {
-        llvm::dbgs() << "\n\n@@@@processing function.. |" << f << "\n";
-      }
-    } else {
-      processOpPostDom(dt, this->R2EntryExit, this->Block2EntryExit, this->Op2Node,
-                   f);
-      dt->entry = this->R2EntryExit[&f.getRegion()].second;
-      dominanceInfo->recalculate(*dt);
-      if (DEBUG) {
-        llvm::dbgs() << "\n\n@@@@processing function.. |" << f << "\n";
-      }
+  if (!IsPostDom) {
+    DTNode *toplevelEntry = DTNode::newToplevelEntry(op, dt);
+    Op2Node[op] = toplevelEntry;
+    dt->entry = toplevelEntry;
+
+    DTNode *toplevelExit = DTNode::newOpExit(op, dt);
+    for (int i = 0; i < op->getNumRegions(); ++i) {
+      Region &r = op->getRegion(i);
+      processRegionDom(dt, this->R2EntryExit, this->Block2EntryExit,
+                       this->Op2Node, toplevelEntry, toplevelExit, &r);
     }
+    llvm::errs() << "trying recalculate...\n";
+    dominanceInfo->recalculate(*dt);
+    llvm::errs() << "\n\tSUCCESS!\n";
+    // if (DEBUG) {
+    //   llvm::dbgs() << "\n\n@@@@processing function.. |" << f << "\n";
+    // }
+  } else {
+    assert(false && "unimplemented");
+    // processOpPostDom(dt, this->R2EntryExit, this->Block2EntryExit,
+    // this->Op2Node,
+    //              f);
+    // dt->entry = this->R2EntryExit[&f.getRegion()].second;
+    // dominanceInfo->recalculate(*dt);
+    // if (DEBUG) {
+    //   llvm::dbgs() << "\n\n@@@@processing function.. |" << f << "\n";
+    // }
+  }
 
-    
+  for (int i = 0; i < dt->Nodes.size(); ++i) {
+    dt->Nodes[i]->Info = dominanceInfo.get();
+    dt->Nodes[i]->DebugIndex = i;
+  }
+
+  if (DEBUG) {
+
     for (int i = 0; i < dt->Nodes.size(); ++i) {
-      dt->Nodes[i]->Info = dominanceInfo.get();
-      dt->Nodes[i]->DebugIndex = i;
+      for (int j = 0; j < dt->Nodes.size(); ++j) {
+        llvm::dbgs() << "dominates(" << i << " " << j
+                     << ", isPostDom:" << IsPostDom << ") = "
+                     << dominanceInfo->dominates(dt->Nodes[i], dt->Nodes[j])
+                     << "\n";
+      }
     }
 
-    if (DEBUG) {
-
-      for (int i = 0; i < dt->Nodes.size(); ++i) {
-        for (int j = 0; j < dt->Nodes.size(); ++j) {
-          llvm::dbgs() << "dominates(" << i << " " << j
-                       << ", isPostDom:" << IsPostDom << ") = "
-                       << dominanceInfo->dominates(dt->Nodes[i], dt->Nodes[j])
-                       << "\n";
-        }
-      }
-
-      for (int i = 0; i < dt->Nodes.size(); ++i) {
-        llvm::dbgs() << "\n##" << i
-                     << (dt->entry == dt->Nodes[i] ? " ENTRY" : "") << ":\n";
-        dt->Nodes[i]->print(llvm::dbgs());
-        llvm::dbgs() << "\n==\n";
-      }
-
-      std::map<DTNode *, int> node2ix;
-      for (int i = 0; i < dt->Nodes.size(); ++i) {
-        node2ix[dt->Nodes[i]] = i;
-      }
-
-      llvm::dbgs() << "edges:\n";
-      for (int i = 0; i < dt->Nodes.size(); ++i) {
-        for (int j = 0; j < dt->Nodes[i]->successors.size(); ++j) {
-          llvm::dbgs() << i << " -> " << node2ix[dt->Nodes[i]->successors[j]]
-                       << "\n";
-        }
-      }
-
-      int FD;
-      llvm::sys::fs::openFileForWrite(
-          "/home/bollu/temp/" + f.getName() + "-graph.dot", FD);
-      llvm::raw_fd_ostream O(FD, /*shouldClose=*/true);
-      llvm::WriteGraph(O, dt);
+    for (int i = 0; i < dt->Nodes.size(); ++i) {
+      llvm::dbgs() << "\n##" << i << (dt->entry == dt->Nodes[i] ? " ENTRY" : "")
+                   << ":\n";
+      dt->Nodes[i]->print(llvm::dbgs());
+      llvm::dbgs() << "\n==\n";
     }
-    func2Dominance.insert({f.getOperation(), std::move(dominanceInfo)});
-  });
 
-  // this->dt = new DT();
+    std::map<DTNode *, int> node2ix;
+    for (int i = 0; i < dt->Nodes.size(); ++i) {
+      node2ix[dt->Nodes[i]] = i;
+    }
 
-  // processOpDom(this->dt, this->R2EntryExit, this->Block2EntryExit,
-  // this->Op2Node,
-  //           op);
-  // this->dt->entry = this->R2EntryExit[&module.getRegion()].first;
+    llvm::dbgs() << "edges:\n";
+    for (int i = 0; i < dt->Nodes.size(); ++i) {
+      for (int j = 0; j < dt->Nodes[i]->successors.size(); ++j) {
+        llvm::dbgs() << i << " -> " << node2ix[dt->Nodes[i]->successors[j]]
+                     << "\n";
+      }
+    }
 
-  // op->walk([&](Operation *op) {
-  //   const int numRegions = op->getNumRegions();
-  //   for (int i = 0; i < numRegions; i++) {
-  //     Region &R = op->getRegion(i);
-  //     processRegionDom(R2EntryExit, Block2Node, &R);
-  //   }
-  // });
-
-  // std::unique_ptr<llvm::DominatorTreeBase<DTNode, IsPostDom>> opDominance =
-  // this->dominanceInfo = std::make_unique<base>();
-
-  // int FD;
-  // llvm::sys::fs::openFileForWrite("/home/bollu/temp/graph.dot", FD);
-  // llvm::raw_fd_ostream O(FD, /*shouldClose=*/ true);
-  // llvm::WriteGraph(O, this->dt);
-
-  // dominanceInfo->recalculate(*this->dt);
-
-  // disconnected nodes dominate each other?!
-
-  // DTNode *Entry = R2EntryExit[op].first;
-  // DTNode *Entry;
-  // opDominance->recalculate(*this);
-  // dominanceInfos.try_emplace(&region, std::move(opDominance));
-
-  // dominanceInfos.clear();
-
-  // // Build the dominance for each of the operation regions.
-  // op->walk([&](Operation *op) {
-  //   auto kindInterface = dyn_cast<RegionKindInterface>(op);
-  //   unsigned numRegions = op->getNumRegions();
-  //   for (unsigned i = 0; i < numRegions; i++) {
-  //     Region &region = op->getRegion(i);
-  //     // Don't compute dominance if the region is empty.
-  //     if (region.empty())
-  //       continue;
-
-  //     // Dominance changes pased on the region type. Avoid the helper
-  //     // function here so we don't do the region cast repeatedly.
-  //     bool hasSSADominance =
-  //         op->isRegistered() &&
-  //         (!kindInterface || kindInterface.hasSSADominance(i));
-  //     // If a region has SSADominance, then compute detailed dominance
-  //     // info.  Otherwise, all values in the region are live anywhere
-  //     // in the region, which is represented as an empty entry in the
-  //     // dominanceInfos map.
-  //     if (hasSSADominance) {
-  //       auto opDominance = std::make_unique<base>();
-  //       opDominance->recalculate(region);
-  //       dominanceInfos.try_emplace(&region, std::move(opDominance));
-  //     }
-  //   }
+    // int FD;
+    // llvm::sys::fs::openFileForWrite(
+    //     "/home/bollu/temp/" + f.getName() + "-graph.dot", FD);
+    // llvm::raw_fd_ostream O(FD, /*shouldClose=*/true);
+    // llvm::WriteGraph(O, dt);
+  }
+  // func2Dominance.insert({f.getOperation(), std::move(dominanceInfo)});
   // });
 }
 
@@ -496,43 +412,45 @@ Block *traverseAncestors(Block *block, const FuncT &func) {
 
 /// Tries to update the given block references to live in the same region by
 /// exploring the relationship of both blocks with respect to their regions.
-static bool tryGetBlocksInSameRegion(Block *&a, Block *&b) {
-  assert(false && "unimplemented");
+// static bool tryGetBlocksInSameRegion(Block *&a, Block *&b) {
+//   assert(false && "unimplemented");
 
-  // If both block do not live in the same region, we will have to check their
-  // parent operations.
-  if (a->getParent() == b->getParent())
-    return true;
+//   // If both block do not live in the same region, we will have to check their
+//   // parent operations.
+//   if (a->getParent() == b->getParent())
+//     return true;
 
-  // Iterate over all ancestors of a and insert them into the map. This allows
-  // for efficient lookups to find a commonly shared region.
-  llvm::SmallDenseMap<Region *, Block *, 4> ancestors;
-  traverseAncestors(a, [&](Block *block) {
-    ancestors[block->getParent()] = block;
-    return false;
-  });
+//   // Iterate over all ancestors of a and insert them into the map. This allows
+//   // for efficient lookups to find a commonly shared region.
+//   llvm::SmallDenseMap<Region *, Block *, 4> ancestors;
+//   traverseAncestors(a, [&](Block *block) {
+//     ancestors[block->getParent()] = block;
+//     return false;
+//   });
 
-  // Try to find a common ancestor starting with regionB.
-  b = traverseAncestors(
-      b, [&](Block *block) { return ancestors.count(block->getParent()) > 0; });
+//   // Try to find a common ancestor starting with regionB.
+//   b = traverseAncestors(
+//       b, [&](Block *block) { return ancestors.count(block->getParent()) > 0; });
 
-  // If there is no match, we will not be able to find a common dominator since
-  // both regions do not share a common parent region.
-  if (!b)
-    return false;
+//   // If there is no match, we will not be able to find a common dominator since
+//   // both regions do not share a common parent region.
+//   if (!b)
+//     return false;
 
-  // We have found a common parent region. Update block a to refer to this
-  // region.
-  auto it = ancestors.find(b->getParent());
-  assert(it != ancestors.end());
-  a = it->second;
-  return true;
-}
+//   // We have found a common parent region. Update block a to refer to this
+//   // region.
+//   auto it = ancestors.find(b->getParent());
+//   assert(it != ancestors.end());
+//   a = it->second;
+//   return true;
+// }
 
 template <bool IsPostDom>
 Block *
 DominanceInfoBase<IsPostDom>::findNearestCommonDominator(Block *a,
                                                          Block *b) const {
+    assert(false && "unimplemented");
+
   if (DEBUG) {
     llvm::dbgs() << __PRETTY_FUNCTION__ << "\n";
     llvm::dbgs() << "\n-a(?)\n";
@@ -540,6 +458,7 @@ DominanceInfoBase<IsPostDom>::findNearestCommonDominator(Block *a,
     llvm::dbgs() << "\n-b(?)\n";
     b->print(llvm::dbgs());
   }
+
   if (!a || !b) {
     return nullptr;
   }
@@ -632,15 +551,11 @@ DominanceInfoBase<IsPostDom>::findNearestCommonDominator(Block *a,
 template <bool IsPostDom>
 DominanceInfoNode *DominanceInfoBase<IsPostDom>::getNode(Block *a) {
   assert(false && "unimplemented");
-  // Region *region = a->getParent();
-  // assert(dominanceInfos.count(region) != 0);
-  // return dominanceInfos[region]->getNode(a);
 }
 
 /// Return true if the specified block A properly dominates block B.
 template <bool IsPostDom>
-bool DominanceInfoBase<IsPostDom>::properlyDominates(Block *a,
-                                                       Block *b) const {
+bool DominanceInfoBase<IsPostDom>::properlyDominates(Block *a, Block *b) const {
 
   if (DEBUG) {
     llvm::dbgs() << __PRETTY_FUNCTION__ << "\n";
@@ -666,6 +581,7 @@ bool DominanceInfoBase<IsPostDom>::properlyDominates(Block *a,
       itb == this->Block2EntryExit.end()) {
     return false;
   }
+
   assert(ita != Block2EntryExit.end());
   assert(itb != Block2EntryExit.end());
 
@@ -694,65 +610,6 @@ bool DominanceInfoBase<IsPostDom>::properlyDominates(Block *a,
   // check if my exit dominates your entry.
   return dominanceInfo->properlyDominates(ita->second.second,
                                           itb->second.first);
-
-  // return dominanceInfo->properlyDominates(ita->second.first,
-  // itb->second.first);
-
-  assert(false && "unimplemented");
-
-  if (a->getParent() == b->getParent()) {
-    // A block dominates itself but does not properly dominate itself.
-    if (a == b) {
-      return b;
-    }
-  } else {
-    // These blocks are in different regions.
-    // if a's region does not contain b's region, then a does not dominates b.
-    if (!a->getParent()->isProperAncestor(b->getParent())) {
-      return false;
-    }
-
-    // a's region is the parent of b's region.
-    // check if a ever calls `run` on `b`.
-  }
-
-  // // A block dominates itself but does not properly dominate itself.
-  // if (a == b)
-  //   return false;
-
-  // // If either a or b are null, then conservatively return false.
-  // if (!a || !b)
-  //   return false;
-
-  // // if both blocks are not in the same region, then 'a' properly dominates
-  // // 'b' if 'a' executes 'b'.
-
-  // // If both blocks are not in the same region, 'a' properly dominates 'b' if
-  // // 'b' is defined in an operation region that (recursively) ends up being
-  // // dominated by 'a'. Walk up the list of containers enclosing B.
-  // const Region *regionA = a->getParent();
-  // if (regionA != b->getParent()) {
-  //   b = traverseAncestors(
-  //       b, [&](Block *block) { return block->getParent() == regionA; });
-
-  //   // If we could not find a valid block b then it is a not a dominator.
-  //   if (!b)
-  //     return false;
-
-  //   // Check to see if the ancestor of 'b' is the same block as 'a'.
-  //   if (a == b)
-  //     return true;
-  // }
-
-  // // Otherwise, use the standard dominance functionality.
-
-  // // If we don't have a dominance information for this region, assume that b
-  // is
-  // // dominated by anything.
-  // auto baseInfoIt = dominanceInfos.find(regionA);
-  // if (baseInfoIt == dominanceInfos.end())
-  //   return true;
-  // return baseInfoIt->second->properlyDominates(a, b);
 }
 
 /// Return true if the specified block is reachable from the entry block of its
@@ -796,6 +653,11 @@ template class detail::DominanceInfoBase</*IsPostDom=*/false>;
 // DominanceInfo
 //===----------------------------------------------------------------------===//
 
+bool DominanceInfo::properlyDominates(Block *a, Block *b) const {
+  return false;
+}
+
+
 /// Return true if operation A properly dominates operation B.
 bool DominanceInfo::properlyDominates(Operation *a, Operation *b) const {
   assert(false && "unimplemented");
@@ -834,12 +696,16 @@ bool DominanceInfo::properlyDominates(Operation *a, Operation *b) const {
 
 /// Return true if value A properly dominates operation B.
 bool DominanceInfo::properlyDominates(Value a, Operation *b) const {
+    assert(false && "unimplemented");
+
   if (Operation *aOp = a.getDefiningOp()) {
     auto ita = this->Op2Node.find(aOp);
     auto itb = this->Op2Node.find(b);
 
     // is this a correct over-approximation?
-    if (ita == Op2Node.end() || itb == Op2Node.end()) { return false; }
+    if (ita == Op2Node.end() || itb == Op2Node.end()) {
+      return false;
+    }
 
     assert(ita != Op2Node.end());
     assert(itb != Op2Node.end());
