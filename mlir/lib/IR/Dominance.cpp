@@ -837,6 +837,10 @@ bool DominanceInfo::properlyDominates(Value a, Operation *b) const {
   if (Operation *aOp = a.getDefiningOp()) {
     auto ita = this->Op2Node.find(aOp);
     auto itb = this->Op2Node.find(b);
+
+    // is this a correct over-approximation?
+    if (ita == Op2Node.end() || itb == Op2Node.end()) { return false; }
+
     assert(ita != Op2Node.end());
     assert(itb != Op2Node.end());
 
@@ -854,7 +858,6 @@ bool DominanceInfo::properlyDominates(Value a, Operation *b) const {
   }
 
   assert(a.isa<BlockArgument>() && "value must be op or block argument");
-  // assert(false && "invoking block argument check!");
   // block arguments properly dominate all operations in their own block, so
   // we use a dominates check here, not a properlyDominates check.
   return dominates(a.cast<BlockArgument>().getOwner(), b->getBlock());
