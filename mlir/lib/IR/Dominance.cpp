@@ -312,7 +312,7 @@ void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
 
   // op->walk([&](mlir::FuncOp f) {
   DT *dt = new DT();
-  auto dtBase = std::make_unique<DTBaseT>();
+  this->tree =  new DTBaseT(); // std::make_unique<DTBaseT>();
 
   if (!IsPostDom) {
     DTNode *toplevelEntry = DTNode::newToplevelEntry(op, dt);
@@ -327,9 +327,8 @@ void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
     }
 
     llvm::errs() << "trying recalculate...\n";
-    dtBase->recalculate(*dt);
+    tree->recalculate(*dt);
     llvm::errs() << "\nSUCCESS!\n";
-    this->tree = dtBase.get();
     llvm::errs() << "\nRECALCULATED tree: |" << this->tree << "|\n";
     getchar();
 
@@ -359,7 +358,7 @@ void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
       for (int j = 0; j < dt->Nodes.size(); ++j) {
         llvm::dbgs() << "dominates(" << i << " " << j
                      << ", isPostDom:" << IsPostDom << ") = "
-                     << dtBase->dominates(dt->Nodes[i], dt->Nodes[j])
+                     << tree->dominates(dt->Nodes[i], dt->Nodes[j])
                      << "\n";
       }
     }
@@ -447,6 +446,8 @@ DominanceInfoBase<IsPostDom>::findNearestCommonDominator(Block *a,
     llvm::errs() << "findNearestCommonDominator(na:" << *na << " " <<
       na->DebugIndex << ", nb:" << *nb << " " << nb->DebugIndex << ", tree: " << this->tree << ")\n";
     assert(na); assert(nb);
+    llvm::errs() << "tree->getNode(na): " << tree->getNode(na) << " |tree->getNode(nb):" << tree->getNode(nb) << "\n";
+    llvm::errs().flush();
 
     DTNode *nearest = tree->findNearestCommonDominator(na, nb);
     assert(nearest->kind != DTNode::Kind::DTToplevelEntry);

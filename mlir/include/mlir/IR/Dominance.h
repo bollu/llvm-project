@@ -105,7 +105,8 @@ struct DTNode {
   DT *getParent() { return parent; }
 
   void printAsOperand(llvm::raw_ostream &os, bool printType = true) {
-    assert(false && "unimplemented print for DTNode");
+    os << this->DebugIndex;
+    // assert(false && "unimplemented print for DTNode");
   }
 
   DTNode(const DTNode &other) = default;
