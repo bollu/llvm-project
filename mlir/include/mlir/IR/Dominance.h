@@ -43,7 +43,7 @@ struct DT {
 // look at RegionGraphTraits.h
 
 struct DTNode {
-  void *Info = nullptr; // pointer to dominance info data structure.
+  // void *Info = nullptr; // pointer to dominance info data structure.
   int DebugIndex = -42; // index used for debugging.
 
   enum class Kind {
@@ -122,7 +122,6 @@ private:
   DTNode(DT *parent) : parent(parent) {}
   DT *parent = nullptr;
   mlir::Block *b = nullptr;
-  mlir::Region *r = nullptr;
   mlir::Operation *op = nullptr;
 };
 
@@ -208,8 +207,9 @@ namespace detail {
 template <bool IsPostDom>
 class DominanceInfoBase {
 protected:
-  using base = llvm::DominatorTreeBase<DTNode, IsPostDom>;
-
+  using DTBaseT = llvm::DominatorTreeBase<DTNode, IsPostDom>;
+  DTBaseT *tree = nullptr;
+  // DTNode *toplevelEntry = nullptr; // TODO: maybe unused
 public:
   DominanceInfoBase() {}
   DominanceInfoBase(Operation *op) { recalculate(op); }
@@ -252,7 +252,7 @@ protected:
   bool isReachableFromEntry(Block *a) const;
 
   /// A mapping of regions to their base dominator tree.
-  DenseMap<Region *, std::unique_ptr<base>> dominanceInfos;
+  DenseMap<Region *, std::unique_ptr<DTBaseT>> dominanceInfos;
 
   // a mapping from parent regions to child regions which they dominate
   // DenseMap<Region *, SmallVector<Region *, 4>> domParent2Children;

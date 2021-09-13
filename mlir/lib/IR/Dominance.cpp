@@ -27,6 +27,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/GraphTraits.h"
+#include "llvm/ExecutionEngine/JITLink/x86_64.h"
 #include "llvm/ExecutionEngine/Orc/CompileOnDemandLayer.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/Support/Debug.h"
@@ -34,6 +35,7 @@
 #include "llvm/Support/GraphWriter.h"
 #include "llvm/Support/YAMLTraits.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Transforms/Instrumentation/AddressSanitizerOptions.h"
 #include <algorithm>
 #include <sys/cdefs.h>
 
@@ -302,7 +304,7 @@ void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
 
   // op->walk([&](mlir::FuncOp f) {
   DT *dt = new DT();
-  auto dominanceInfo = std::make_unique<base>();
+  auto dominanceInfo = std::make_unique<DTBaseT>();
 
   if (!IsPostDom) {
     DTNode *toplevelEntry = DTNode::newToplevelEntry(op, dt);
@@ -318,6 +320,7 @@ void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
     llvm::errs() << "trying recalculate...\n";
     dominanceInfo->recalculate(*dt);
     llvm::errs() << "\n\tSUCCESS!\n";
+    this->tree = dominanceInfo.get();
     // if (DEBUG) {
     //   llvm::dbgs() << "\n\n@@@@processing function.. |" << f << "\n";
     // }
@@ -334,7 +337,7 @@ void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
   }
 
   for (int i = 0; i < dt->Nodes.size(); ++i) {
-    dt->Nodes[i]->Info = dominanceInfo.get();
+    // dt->Nodes[i]->Info = dominanceInfo.get();
     dt->Nodes[i]->DebugIndex = i;
   }
 
@@ -386,166 +389,38 @@ void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
 /// otherwise.
 template <typename FuncT>
 Block *traverseAncestors(Block *block, const FuncT &func) {
-  assert(false && "unimplemented");
-  // Invoke the user-defined traversal function in the beginning for the current
-  // block.
-  if (func(block))
-    return block;
+  // assert(false && "unimplemented");
+  // // Invoke the user-defined traversal function in the beginning for the current
+  // // block.
+  // if (func(block))
+  //   return block;
 
-  Region *region = block->getParent();
-  while (region) {
-    Operation *ancestor = region->getParentOp();
-    // If we have reached to top... return.
-    if (!ancestor || !(block = ancestor->getBlock()))
-      break;
+  // Region *region = block->getParent();
+  // while (region) {
+  //   Operation *ancestor = region->getParentOp();
+  //   // If we have reached to top... return.
+  //   if (!ancestor || !(block = ancestor->getBlock()))
+  //     break;
 
-    // Update the nested region using the new ancestor block.
-    region = block->getParent();
+  //   // Update the nested region using the new ancestor block.
+  //   region = block->getParent();
 
-    // Invoke the user-defined traversal function and check whether we can
-    // already return.
-    if (func(block))
-      return block;
-  }
-  return nullptr;
+  //   // Invoke the user-defined traversal function and check whether we can
+  //   // already return.
+  //   if (func(block))
+  //     return block;
+  // }
+  // return nullptr;
 }
 
-/// Tries to update the given block references to live in the same region by
-/// exploring the relationship of both blocks with respect to their regions.
-// static bool tryGetBlocksInSameRegion(Block *&a, Block *&b) {
-//   assert(false && "unimplemented");
-
-//   // If both block do not live in the same region, we will have to check their
-//   // parent operations.
-//   if (a->getParent() == b->getParent())
-//     return true;
-
-//   // Iterate over all ancestors of a and insert them into the map. This allows
-//   // for efficient lookups to find a commonly shared region.
-//   llvm::SmallDenseMap<Region *, Block *, 4> ancestors;
-//   traverseAncestors(a, [&](Block *block) {
-//     ancestors[block->getParent()] = block;
-//     return false;
-//   });
-
-//   // Try to find a common ancestor starting with regionB.
-//   b = traverseAncestors(
-//       b, [&](Block *block) { return ancestors.count(block->getParent()) > 0; });
-
-//   // If there is no match, we will not be able to find a common dominator since
-//   // both regions do not share a common parent region.
-//   if (!b)
-//     return false;
-
-//   // We have found a common parent region. Update block a to refer to this
-//   // region.
-//   auto it = ancestors.find(b->getParent());
-//   assert(it != ancestors.end());
-//   a = it->second;
-//   return true;
-// }
 
 template <bool IsPostDom>
 Block *
 DominanceInfoBase<IsPostDom>::findNearestCommonDominator(Block *a,
                                                          Block *b) const {
+
     assert(false && "unimplemented");
 
-  if (DEBUG) {
-    llvm::dbgs() << __PRETTY_FUNCTION__ << "\n";
-    llvm::dbgs() << "\n-a(?)\n";
-    a->print(llvm::dbgs());
-    llvm::dbgs() << "\n-b(?)\n";
-    b->print(llvm::dbgs());
-  }
-
-  if (!a || !b) {
-    return nullptr;
-  }
-  if (a == b) {
-    return a;
-  }
-
-  // assert(false && "unimplemented");
-
-  auto ita = this->Block2EntryExit.find(a);
-  auto itb = this->Block2EntryExit.find(b);
-
-  // we are sometimes asked about the block which is the entry block of the
-  // **module region**. This is a nonsensical BB to be queried about, so ignore
-  // it.
-  if (ita == Block2EntryExit.end() || itb == Block2EntryExit.end()) {
-    return nullptr;
-  }
-
-  assert(ita != Block2EntryExit.end());
-  assert(itb != Block2EntryExit.end());
-
-  if (DEBUG) {
-
-    llvm::dbgs() << "\n-a(" << ita->second.first->DebugIndex << ")\n";
-    a->print(llvm::dbgs());
-    llvm::dbgs() << "\n-b(" << itb->second.first->DebugIndex << ")\n";
-    b->print(llvm::dbgs());
-  }
-  if (a != b) {
-    assert(ita->second.first != itb->second.first);
-  }
-
-  assert(ita->second.first->Info == itb->second.first->Info &&
-         "both must have same dom info data structure");
-  base *dominanceInfo = (base *)ita->second.first->Info;
-
-  // TODO, HACK, SID: this assumes we return the entry block!
-  // This is totally bankrupt in our case.
-  //  Find a correct thing to return.
-
-  // check if entry of A properly dominates entry of B.
-  // Operation *fn = a->getParentOp()->getParentOfType<FuncOp>();
-  // if (fn == nullptr) { return false;}
-
-  // llvm::dbgs() << "parent: " << fn << "\n";
-  // auto domit = func2Dominance.find(fn);
-  // assert(domit != func2Dominance.end());
-  // check if my exit dominates your entry.
-  DTNode *commonDom = dominanceInfo->findNearestCommonDominator(
-      ita->second.first, itb->second.first);
-
-  if (DEBUG) {
-    llvm::dbgs() << "-commonDom: ";
-    if (commonDom) {
-      commonDom->print(llvm::dbgs());
-    } else {
-      llvm::dbgs() << "nullptr ";
-    }
-    llvm::dbgs() << "\n";
-  }
-  if (!commonDom) {
-    return nullptr;
-  }
-
-  assert(commonDom);
-  assert(commonDom->kind == DTNode::Kind::DTBlock);
-
-  return commonDom->getBlock();
-
-  // // If either a or b are null, then conservatively return nullptr.
-  // if (!a || !b)
-  //   return nullptr;
-
-  // // Try to find blocks that are in the same region.
-  // if (!tryGetBlocksInSameRegion(a, b))
-  //   return nullptr;
-
-  // // Get and verify dominance information of the common parent region.
-  // Region *parentRegion = a->getParent();
-  // auto infoAIt = dominanceInfos.find(parentRegion);
-  // if (infoAIt == dominanceInfos.end())
-  //   return nullptr;
-
-  // // Since the blocks live in the same region, we can rely on already
-  // // existing dominance functionality.
-  // return infoAIt->second->findNearestCommonDominator(a, b);
 }
 
 template <bool IsPostDom>
@@ -556,94 +431,33 @@ DominanceInfoNode *DominanceInfoBase<IsPostDom>::getNode(Block *a) {
 /// Return true if the specified block A properly dominates block B.
 template <bool IsPostDom>
 bool DominanceInfoBase<IsPostDom>::properlyDominates(Block *a, Block *b) const {
-
-  if (DEBUG) {
-    llvm::dbgs() << __PRETTY_FUNCTION__ << "\n";
-  }
-  // If either a or b are null, then conservatively return false.
-  if (!a || !b) {
-    return false;
-  }
-  if (DEBUG) {
-
-    llvm::dbgs() << "\n-a(?)\n";
-    a->print(llvm::dbgs());
-    llvm::dbgs() << "\n-b(?)\n";
-    b->print(llvm::dbgs());
-  }
-  auto ita = this->Block2EntryExit.find(a);
-  auto itb = this->Block2EntryExit.find(b);
-
-  // we are sometimes asked about blocks that are like the module's
-  // entry block which is nonsensical. We hold no information about such blocks,
-  // so give up and conservatively return false.
-  if (ita == this->Block2EntryExit.end() ||
-      itb == this->Block2EntryExit.end()) {
-    return false;
-  }
-
-  assert(ita != Block2EntryExit.end());
-  assert(itb != Block2EntryExit.end());
-
-  if (DEBUG) {
-    llvm::dbgs() << "\n-a(" << ita->second.first->DebugIndex << ")\n";
-    a->print(llvm::dbgs());
-    llvm::dbgs() << "\n-b(" << itb->second.first->DebugIndex << ")\n";
-    b->print(llvm::dbgs());
-  }
-
-  if (a != b) {
-    assert(ita->second.first != itb->second.first);
-  }
-
-  assert(ita->second.first->Info == itb->second.first->Info &&
-         "both must have same dom info data structure");
-  base *dominanceInfo = (base *)ita->second.first->Info;
-
-  // check if entry of A properly dominates entry of B.
-  // Operation *fn = a->getParentOp()->getParentOfType<FuncOp>();
-  // if (fn == nullptr) { return false;}
-
-  // llvm::dbgs() << "parent: " << fn << "\n";
-  // auto domit = func2Dominance.find(fn);
-  // assert(domit != func2Dominance.end());
-  // check if my exit dominates your entry.
-  return dominanceInfo->properlyDominates(ita->second.second,
-                                          itb->second.first);
+  assert(false && "unimplemented");
+  
 }
 
 /// Return true if the specified block is reachable from the entry block of its
 /// region.
 template <bool IsPostDom>
 bool DominanceInfoBase<IsPostDom>::isReachableFromEntry(Block *a) const {
-  if (DEBUG) {
-    llvm::dbgs() << __PRETTY_FUNCTION__ << "\n";
-    llvm::dbgs() << "-a: " << a << "\n";
-    llvm::dbgs() << "-a: ";
-    a->print(llvm::dbgs());
-    llvm::dbgs() << "\n";
+  if (!IsPostDom) {
+    DTNode *aNode = [&]() {
+      auto it = this->Block2EntryExit.find(a);
+      if (it != this->Block2EntryExit.end()) {
+        return it->second.first;
+      } else {
+        return (DTNode *)nullptr;
+      }
+    }();
+
+    if (aNode) {
+      return this->tree->isReachableFromEntry(aNode);
+    } else {
+      return false;
+    }
+  } else {
+
   }
 
-  // assert(false && "unreachable");
-  auto it = this->Block2EntryExit.find(a);
-  // TODO: why can there a BB we don't understand? I don't get it, but OK.
-  // Sid: this condition was stolen from previous code.
-  if (it == this->Block2EntryExit.end()) {
-    return true;
-  }
-
-  assert(it != this->Block2EntryExit.end());
-  DTNode *Entry = it->second.first;
-  base *dominanceInfo = (base *)Entry->Info;
-  return dominanceInfo->isReachableFromEntry(Entry);
-  // Region *regionA = a->getParent();
-  // auto baseInfoIt = dominanceInfos.find(regionA);
-  // if (baseInfoIt == dominanceInfos.end()) {
-  //   return true;
-  // }
-
-  // // return
-  // baseInfoIt->second->isReachableFromEntry(this->Block2EntryExit[a].first);
 }
 
 template class detail::DominanceInfoBase</*IsPostDom=*/true>;
@@ -653,7 +467,29 @@ template class detail::DominanceInfoBase</*IsPostDom=*/false>;
 // DominanceInfo
 //===----------------------------------------------------------------------===//
 
+
+bool properlyDominatesReal(llvm::DominatorTreeBase<DTNode, false> *tree, DTNode *a, DTNode *b) {
+  assert(tree && "expected legal tree");
+  if (a == nullptr || b == nullptr) { return false; }
+
+  if (a == b) { return false; }
+
+  if (a->kind == DTNode::Kind::DTToplevelEntry) { return true; }
+  else if (a->kind == DTNode::Kind::DTBlock) {
+    // if `b` is a block, then it's not `a` (since we've already checked). So dom => properly dom.
+    // if `b` is an op, then the DTNode could be `a` (since it's an op), but a block dominantes all ops in it, so properly d
+    tree->dominates(a, b);
+  }
+  else {
+    // we setup dominance correctly
+    assert(a->kind == DTNode::Kind::DTOpExit);
+    return tree->properlyDominates(a, b);
+  }
+}
+
 bool DominanceInfo::properlyDominates(Block *a, Block *b) const {
+    assert(false && "unimplemented");
+
   return false;
 }
 
@@ -696,60 +532,82 @@ bool DominanceInfo::properlyDominates(Operation *a, Operation *b) const {
 
 /// Return true if value A properly dominates operation B.
 bool DominanceInfo::properlyDominates(Value a, Operation *b) const {
-    assert(false && "unimplemented");
-
+  DTNode *aNode = nullptr;
   if (Operation *aOp = a.getDefiningOp()) {
     auto ita = this->Op2Node.find(aOp);
-    auto itb = this->Op2Node.find(b);
-
-    // is this a correct over-approximation?
-    if (ita == Op2Node.end() || itb == Op2Node.end()) {
-      return false;
-    }
-
     assert(ita != Op2Node.end());
-    assert(itb != Op2Node.end());
-
-    assert(ita->second->Info == itb->second->Info &&
-           "both must have same dom info data structure");
-    base *dominanceInfo = (base *)ita->second->Info;
-
-    if (ita->second == itb->second) {
-      // these are next to each other in the same BB / are not interleaved with
-      // a region instruction.
-      return aOp != b && aOp->isBeforeInBlock(b);
-    }
-
-    return aOp != b && dominanceInfo->dominates(ita->second, itb->second);
+    aNode = ita->second;
+  } else {
+      // can add new BBs.
+      assert(a.isa<BlockArgument>() && "value must be op or block argument");
+      BlockArgument arg = a.cast<BlockArgument>();
+      auto ita = this->Block2EntryExit.find(arg.getOwner());
+      if (ita != this->Block2EntryExit.end()) {
+        // assert(ita != this->Block2EntryExit.end());
+        aNode = ita->second.first;
+      }
   }
+  DTNode *bNode = [&]() {
+    auto itb = this->Op2Node.find(b);
+    assert(itb != this->Op2Node.end());
+    return itb->second;
+  }();
 
-  assert(a.isa<BlockArgument>() && "value must be op or block argument");
-  // block arguments properly dominate all operations in their own block, so
-  // we use a dominates check here, not a properlyDominates check.
-  return dominates(a.cast<BlockArgument>().getOwner(), b->getBlock());
 
   assert(false && "unimplemented");
+  return properlyDominatesReal(this->tree, aNode, bNode);
+  // if (Operation *aOp = a.getDefiningOp()) {
+  //   auto ita = this->Op2Node.find(aOp);
+  //   auto itb = this->Op2Node.find(b);
 
-  if (auto *aOp = a.getDefiningOp()) {
-    // Dominance changes based on the region type.
-    auto *aRegion = aOp->getParentRegion();
-    unsigned aRegionNum = aRegion->getRegionNumber();
-    Operation *ancestor = aRegion->getParentOp();
-    // Dominance changes based on the region type. In a region with SSA
-    // dominance, values defined by an operation cannot be used by the
-    // operation. In other regions kinds they can be used the operation.
-    if (hasSSADominance(ancestor, aRegionNum)) {
-      // The values defined by an operation do *not* dominate any nested
-      // operations.
-      if (aOp->getParentRegion() != b->getParentRegion() && aOp->isAncestor(b))
-        return false;
-    }
-    return properlyDominates(aOp, b);
-  }
+  //   // is this a correct over-approximation?
+  //   if (ita == Op2Node.end() || itb == Op2Node.end()) {
+  //     return false;
+  //   }
 
-  // block arguments properly dominate all operations in their own block, so
-  // we use a dominates check here, not a properlyDominates check.
-  return dominates(a.cast<BlockArgument>().getOwner(), b->getBlock());
+  //   assert(ita != Op2Node.end());
+  //   assert(itb != Op2Node.end());
+
+  //   assert(ita->second->Info == itb->second->Info &&
+  //          "both must have same dom info data structure");
+  //   DTBaseT *dominanceInfo = (DTBaseT *)ita->second->Info;
+
+  //   if (ita->second == itb->second) {
+  //     // these are next to each other in the same BB / are not interleaved with
+  //     // a region instruction.
+  //     return aOp != b && aOp->isBeforeInBlock(b);
+  //   }
+
+  //   return aOp != b && dominanceInfo->dominates(ita->second, itb->second);
+  // }
+
+  // assert(a.isa<BlockArgument>() && "value must be op or block argument");
+  // // block arguments properly dominate all operations in their own block, so
+  // // we use a dominates check here, not a properlyDominates check.
+  // return dominates(a.cast<BlockArgument>().getOwner(), b->getBlock());
+
+  // assert(false && "unimplemented");
+
+  // if (auto *aOp = a.getDefiningOp()) {
+  //   // Dominance changes based on the region type.
+  //   auto *aRegion = aOp->getParentRegion();
+  //   unsigned aRegionNum = aRegion->getRegionNumber();
+  //   Operation *ancestor = aRegion->getParentOp();
+  //   // Dominance changes based on the region type. In a region with SSA
+  //   // dominance, values defined by an operation cannot be used by the
+  //   // operation. In other regions kinds they can be used the operation.
+  //   if (hasSSADominance(ancestor, aRegionNum)) {
+  //     // The values defined by an operation do *not* dominate any nested
+  //     // operations.
+  //     if (aOp->getParentRegion() != b->getParentRegion() && aOp->isAncestor(b))
+  //       return false;
+  //   }
+  //   return properlyDominates(aOp, b);
+  // }
+
+  // // block arguments properly dominate all operations in their own block, so
+  // // we use a dominates check here, not a properlyDominates check.
+  // return dominates(a.cast<BlockArgument>().getOwner(), b->getBlock());
 }
 
 void DominanceInfo::updateDFSNumbers() {
