@@ -1,4 +1,4 @@
-//===- Dominance.cpp - Dominator analysis for CFGs ------------------------===//
+  //===- Dominance.cpp - Dominator analysis for CFGs ------------------------===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -55,7 +55,7 @@ static bool hasSSADominance(Operation *op, unsigned index) {
          (!kindInterface || kindInterface.hasSSADominance(index));
 }
 
-const int DEBUG = 0;
+const int DEBUG = 1;
 #define DEBUG_TYPE "dom"
 
 using llvm::dbgs;
@@ -164,68 +164,6 @@ void getRegionsFromValue(Value v, std::set<mlir::Region *> &out) {
     getRegionsFromValue(operand, out);
   }
   // }
-}
-
-void processRegionPostDom(
-    DT *dt, DenseMap<Region *, std::pair<DTNode *, DTNode *>> &R2EntryExit,
-    DenseMap<mlir::Block *, std::pair<DTNode *, DTNode *>> &Block2Node,
-    DenseMap<Operation *, DTNode *> &Op2Node, mlir::Region *R,
-    DTNode *ParentOpExit) {
-
-  assert(false && "have not thought about this");
-  /*
-  assert(R->getBlocks().size() > 0);
-  // for each block, create entry/exit nodes.
-  for (mlir::Block &B : *R) {
-    // "entry node" for this block.
-    DTNode *BNode = DTNode::newBlock(&B, dt);
-    dt->Nodes.push_back(BNode);
-    Block2Node[&B].first = Block2Node[&B].second = BNode;
-  }
-
-  Block &EntryBlock = R->getBlocks().front();
-  DTNode *RegionEntry = Block2Node[&EntryBlock].first;
-  assert(ParentOpExit->kind == DTNode::Kind::DTOpExit);
-  // dt->Nodes.push_back(RegionExit);
-
-  R2EntryExit[R] = {RegionEntry, ParentOpExit};
-
-  for (mlir::Block &B : *R) {
-    for (Operation &Op : B) {
-      // recursively process regions.
-      processOpPostDom(dt, R2EntryExit, Block2Node, Op2Node, &Op);
-
-      Op2Node[&Op] = Block2Node[&B].second;
-
-      // return like op. exit to region exit.
-      if (Op.hasTrait<OpTrait::IsTerminator>() &&
-          Op.hasTrait<OpTrait::ReturnLike>()) {
-        // add edit to exit block of region
-        DTNode *ThisExit = Block2Node[&B].second;
-        // RegionExit->addSuccessor(ThisExit);
-        // ThisExit->addSuccessor(RegionExit);
-        continue;
-      }
-
-      // not a return like terminator.
-      if (Op.hasTrait<OpTrait::IsTerminator>() &&
-          !Op.hasTrait<OpTrait::ReturnLike>()) {
-        for (BlockOperand &NextB : Op.getBlockOperands()) {
-          if (DEBUG) {
-            llvm::dbgs() << "creating next block links for |" << Op
-                         << "| to: " << NextB.get() << "\n";
-            getchar();
-          }
-          DTNode *ThisExit = Block2Node[&B].second;
-          DTNode *NextEntry = Block2Node[NextB.get()].first;
-          NextEntry->addSuccessor(ThisExit);
-          // ThisExit->addSuccessor(NextEntry);
-        }
-        continue;
-      }
-    }
-  }
-  */
 }
 
 template <bool IsPostDom>
@@ -361,7 +299,7 @@ void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
 
     for (int i = 0; i < dt->Nodes.size(); ++i) {
       for (int j = 0; j < dt->Nodes.size(); ++j) {
-        llvm::dbgs() << "dominates(" << i << " " << j
+        llvm::dbgs() << "dominates(" << dt->Nodes[i]->DebugIndex << " " << dt->Nodes[j]->DebugIndex
                      << ", isPostDom:" << IsPostDom
                      << ") = " << tree->dominates(dt->Nodes[i], dt->Nodes[j])
                      << "\n";
@@ -430,11 +368,11 @@ DominanceInfoBase<IsPostDom>::findNearestCommonDominator(Block *a,
     return nullptr;
   }
 
-  if (DEBUG) {
-    llvm::errs() << "findNearestCommonDominator(na:" << *na << " "
-                 << na->DebugIndex << ", nb:" << *nb << " " << nb->DebugIndex
-                 << ", tree: " << this->tree << ")\n";
-  }
+  // if (DEBUG) {
+  //   llvm::errs() << "findNearestCommonDominator(na:" << *na << " "
+  //                << na->DebugIndex << ", nb:" << *nb << " " << nb->DebugIndex
+  //                << ", tree: " << this->tree << ")\n";
+  // }
   assert(na);
   assert(nb);
 
@@ -444,11 +382,11 @@ DominanceInfoBase<IsPostDom>::findNearestCommonDominator(Block *a,
     return nearest->getBlock();
   } else {
     // assert(false && "found nearest op node!");
-    if (DEBUG) {
-      llvm::errs() << "findNearestCommonDominator found nearest as op node (na:"
-                   << *na << " " << na->DebugIndex << ", nb:" << *nb << " "
-                   << nb->DebugIndex << ", nearest: " << *nearest << ")\n";
-    }
+    // if (DEBUG) {
+    //   llvm::errs() << "findNearestCommonDominator found nearest as op node (na:"
+    //                << *na << " " << na->DebugIndex << ", nb:" << *nb << " "
+    //                << nb->DebugIndex << ", nearest: " << *nearest << ")\n";
+    // }
 
     llvm::DomTreeNodeBase<DTNode> *nearestBase = tree->getNode(nearest);
     return nearest->getOp()->getBlock();
@@ -498,7 +436,7 @@ bool DominanceInfoBase<IsPostDom>::properlyDominates(Block *a, Block *b) const {
     if (it == Block2EntryExit.end()) {
       return nullptr;
     }
-    return it->second.first;
+    return IsPostDom ? it->second.second : it->second.first;
   }();
 
   DTNode *bnode = [&]() -> DTNode * {
@@ -506,11 +444,12 @@ bool DominanceInfoBase<IsPostDom>::properlyDominates(Block *a, Block *b) const {
     if (it == Block2EntryExit.end()) {
       return nullptr;
     }
-    return it->second.first;
+    return IsPostDom ? it->second.second : it->second.first;
   }();
 
+  if (!anode || !bnode) { return false; }
+
   return tree->properlyDominates(anode, bnode);
-  // return properlyDominatesReal<IsPostDom>(tree, anode, bnode);
 }
 
 /// Return true if the specified block is reachable from the entry block of its
@@ -561,6 +500,8 @@ bool DominanceInfo::properlyDominates(Operation *a, Operation *b) const {
     }
     return it->second;
   }();
+
+  if (!anode || !bnode) { return false; }
 
   return tree->properlyDominates(anode, bnode);
 }

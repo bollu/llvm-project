@@ -37,10 +37,17 @@ public:
   /// Constructs a new test instance using the given operation.
   DominanceTest(Operation *operation) : operation(operation) {
     // Create unique ids for each block.
+    // See that this also walks the parent of the
+    // top-level function!
     operation->walk([&](Operation *nested) {
       if (blockIds.count(nested->getBlock()) > 0)
         return;
-      blockIds.insert({nested->getBlock(), blockIds.size()});
+      const int id = blockIds.size();
+      blockIds.insert({nested->getBlock(), id});
+      llvm::errs() << "---DominanceTest (id:" << id << ")---\n";
+      llvm::errs() << nested->getBlock() << "   ";
+      nested->getBlock()->print(llvm::errs());
+      llvm::errs() << "===\n";
     });
   }
 
@@ -97,6 +104,9 @@ struct TestDominancePass : public PassWrapper<TestDominancePass, FunctionPass> {
   }
 
   void runOnFunction() override {
+    // Analysis is only run on the FUNCTION
+    // but the test wants correct results for the MODULE.
+    // WTF?
     llvm::errs() << "Testing : " << getFunction().getName() << "\n";
     DominanceTest dominanceTest(getFunction());
 

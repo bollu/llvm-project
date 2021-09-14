@@ -15,6 +15,7 @@
 #include "mlir/Support/LLVM.h"
 #include "llvm/ADT/GraphTraits.h"
 #include "llvm/ExecutionEngine/JITLink/x86_64.h"
+#include "llvm/Support/DOTGraphTraits.h"
 #include "llvm/Support/GenericDomTree.h"
 #include "llvm/Support/raw_ostream.h"
 #include <memory>
@@ -171,12 +172,20 @@ struct GraphTraits<DT *> : public GraphTraits<DTNode *> {
   static nodes_iterator nodes_begin(DT *base) { return base->Nodes.begin(); }
   static nodes_iterator nodes_end(DT *base) { return base->Nodes.end(); }
 
-  static std::string getNodeIdentifierLabel(const DTNode *Node,
-                                            const DT *Graph) {
-    return std::to_string(Node->DebugIndex);
-  }
 
 };
+
+template<>
+struct DOTGraphTraits<const DT*> : public DefaultDOTGraphTraits {
+    explicit DOTGraphTraits(bool isSimple=false) :
+      DefaultDOTGraphTraits(isSimple) {}
+
+  static std::string getNodeLabel(const DTNode *Node,
+                                  const DT *&Graph) {
+    return std::to_string(Node->DebugIndex);
+  }
+};
+
 } // namespace llvm
 
 namespace llvm {
@@ -194,10 +203,6 @@ struct GraphTraits<Inverse<DTNode *>> {
     return node->pred_end();
   }
 
-  static std::string getNodeIdentifierLabel(const DTNode *Node,
-                                            const DT *Graph) {
-    return std::to_string(Node->DebugIndex);
-  }
 };
 }; // namespace llvm
 
@@ -217,10 +222,6 @@ struct GraphTraits<Inverse<DT *>> : public GraphTraits<Inverse<DTNode *>> {
     return nodes_iterator(dt.Graph->Nodes.end());
   }
 
-  static std::string getNodeIdentifierLabel(const DTNode *Node,
-                                            const DT *Graph) {
-    return std::to_string(Node->DebugIndex);
-  }
 
 
 };
@@ -348,14 +349,14 @@ public:
     return a == b || properlyDominates(a, b);
   }
 
-  /// Return true if the specified block A properly dominates block B, i.e.: if
-  /// block A contains block B, or if the region which contains block A also
-  /// contains block B or some parent of block B and block A dominates that
-  /// block in that kind of region.  In an SSACFG region, block A dominates
-  /// block B if all control flow paths from the entry block to block B flow
-  /// through block A. In a Graph region, all blocks dominate all other blocks.
+  // /// Return true if the specified block A properly dominates block B, i.e.: if
+  // /// block A contains block B, or if the region which contains block A also
+  // /// contains block B or some parent of block B and block A dominates that
+  // /// block in that kind of region.  In an SSACFG region, block A dominates
+  // /// block B if all control flow paths from the entry block to block B flow
+  // /// through block A. In a Graph region, all blocks dominate all other blocks.
   bool properlyDominates(Block *a, Block *b) const {
-    return super::properlyDominates(a,b );
+    return super::properlyDominates(a, b);
   }
 
   /// Update the internal DFS numbers for the dominance nodes.
