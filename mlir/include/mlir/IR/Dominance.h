@@ -72,7 +72,10 @@ struct DTNode {
   pred_iterator pred_end() { return getPredecessors().end(); }
   PredecessorRange &getPredecessors() { return this->predecessors; }
 
-  void addSuccessor(DTNode *&next) { this->successors.push_back(next); }
+  void addSuccessor(DTNode *&next) {
+    this->successors.push_back(next);
+    next->predecessors.push_back(this);
+  }
 
   static DTNode *newBlock(mlir::Block *b, DT *parent) {
     DTNode *node = new DTNode(parent);
