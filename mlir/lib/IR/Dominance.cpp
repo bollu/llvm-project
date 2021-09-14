@@ -312,7 +312,7 @@ template <bool IsPostDom>
 void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
 
   // ModuleOp module = dyn_cast<ModuleOp>(op);
-  assert(isa<ModuleOp>(op) || isa<FuncOp>(op));
+  // assert(isa<ModuleOp>(op) || isa<FuncOp>(op));
 
   this->R2EntryExit.clear();
   this->Block2EntryExit.clear();
@@ -545,38 +545,24 @@ template class detail::DominanceInfoBase</*IsPostDom=*/false>;
 
 /// Return true if operation A properly dominates operation B.
 bool DominanceInfo::properlyDominates(Operation *a, Operation *b) const {
-  assert(false && "unimplemented");
-
-  Block *aBlock = a->getBlock(), *bBlock = b->getBlock();
-  Region *aRegion = a->getParentRegion();
-  unsigned aRegionNum = aRegion->getRegionNumber();
-  Operation *ancestor = aRegion->getParentOp();
-
-  // If a or b are not within a block, then a does not dominate b.
-  if (!aBlock || !bBlock)
-    return false;
-
-  if (aBlock == bBlock) {
-    // Dominance changes based on the region type. In a region with SSA
-    // dominance, uses inside the same block must follow defs. In other
-    // regions kinds, uses and defs can come in any order inside a block.
-    if (hasSSADominance(ancestor, aRegionNum)) {
-      // If the blocks are the same, then check if b is before a in the block.
-      return a->isBeforeInBlock(b);
+    if (!a || !b) { return false; }
+    DTNode *anode = [&]() -> DTNode * {
+    auto it = this->Op2Node.find(a);
+    if (it == Op2Node.end()) {
+      return nullptr;
     }
-    return true;
-  }
+    return it->second;
+  }();
 
-  // Traverse up b's hierarchy to check if b's block is contained in a's.
-  if (auto *bAncestor = aBlock->findAncestorOpInBlock(*b)) {
-    // Since we already know that aBlock != bBlock, here bAncestor != b.
-    // a and bAncestor are in the same block; check if 'a' dominates
-    // bAncestor.
-    return dominates(a, bAncestor);
-  }
+  DTNode *bnode = [&]() -> DTNode * {
+    auto it = this->Op2Node.find(b);
+    if (it == Op2Node.end()) {
+      return nullptr;
+    }
+    return it->second;
+  }();
 
-  // If the blocks are different, check if a's block dominates b's.
-  return properlyDominates(aBlock, bBlock);
+  return tree->properlyDominates(anode, bnode);
 }
 
 /// Return true if value A properly dominates operation B.
