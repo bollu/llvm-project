@@ -354,7 +354,9 @@ public:
   /// block in that kind of region.  In an SSACFG region, block A dominates
   /// block B if all control flow paths from the entry block to block B flow
   /// through block A. In a Graph region, all blocks dominate all other blocks.
-  bool properlyDominates(Block *a, Block *b) const;
+  bool properlyDominates(Block *a, Block *b) const {
+    return super::properlyDominates(a,b );
+  }
 
   /// Update the internal DFS numbers for the dominance nodes.
   void updateDFSNumbers();

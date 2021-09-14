@@ -453,10 +453,50 @@ DominanceInfoNode *DominanceInfoBase<IsPostDom>::getNode(Block *a) {
   assert(false && "unimplemented");
 }
 
+template<bool IsPostDom>
+bool properlyDominatesReal(llvm::DominatorTreeBase<DTNode, IsPostDom> *tree,
+                           DTNode *a, DTNode *b) {
+  assert(tree && "expected legal tree");
+  if (a == nullptr || b == nullptr) {
+    return false;
+  }
+
+  if (a == b) {
+    return false;
+  }
+
+  if (a->kind == DTNode::Kind::DTToplevelEntry) {
+    return true;
+  } else if (a->kind == DTNode::Kind::DTBlock) {
+    // if `b` is a block, then it's not `a` (since we've already checked). So
+    // dom => properly dom. if `b` is an op, then the DTNode could be `a` (since
+    // it's an op), but a block dominantes all ops in it, so properly d
+    return tree->dominates(a, b);
+  } else {
+    // we setup dominance correctly
+    assert(a->kind == DTNode::Kind::DTOpExit);
+    return tree->properlyDominates(a, b);
+  }
+}
+
+
 /// Return true if the specified block A properly dominates block B.
 template <bool IsPostDom>
 bool DominanceInfoBase<IsPostDom>::properlyDominates(Block *a, Block *b) const {
-  assert(false && "unimplemented");
+  if (a == nullptr || b == nullptr) { return false; }
+  DTNode *anode = [&]() -> DTNode* {
+    auto it = this->Block2EntryExit.find(a);
+    if (it == Block2EntryExit.end()) { return nullptr; }
+    return it->second.first;
+  }();
+
+  DTNode *bnode = [&]() -> DTNode* {
+    auto it = this->Block2EntryExit.find(b);
+    if (it == Block2EntryExit.end()) { return nullptr; }
+    return it->second.first;
+  }();
+
+  return properlyDominatesReal<IsPostDom>(tree, anode, bnode);
 }
 
 /// Return true if the specified block is reachable from the entry block of its
@@ -489,36 +529,7 @@ template class detail::DominanceInfoBase</*IsPostDom=*/false>;
 // DominanceInfo
 //===----------------------------------------------------------------------===//
 
-bool properlyDominatesReal(llvm::DominatorTreeBase<DTNode, false> *tree,
-                           DTNode *a, DTNode *b) {
-  assert(tree && "expected legal tree");
-  if (a == nullptr || b == nullptr) {
-    return false;
-  }
 
-  if (a == b) {
-    return false;
-  }
-
-  if (a->kind == DTNode::Kind::DTToplevelEntry) {
-    return true;
-  } else if (a->kind == DTNode::Kind::DTBlock) {
-    // if `b` is a block, then it's not `a` (since we've already checked). So
-    // dom => properly dom. if `b` is an op, then the DTNode could be `a` (since
-    // it's an op), but a block dominantes all ops in it, so properly d
-    return tree->dominates(a, b);
-  } else {
-    // we setup dominance correctly
-    assert(a->kind == DTNode::Kind::DTOpExit);
-    return tree->properlyDominates(a, b);
-  }
-}
-
-bool DominanceInfo::properlyDominates(Block *a, Block *b) const {
-  assert(false && "unimplemented");
-
-  return false;
-}
 
 /// Return true if operation A properly dominates operation B.
 bool DominanceInfo::properlyDominates(Operation *a, Operation *b) const {
