@@ -77,7 +77,7 @@ LogicalResult OperationVerifier::verifyOpAndDominance(Operation &op) {
   // CFG's can cause dominator analysis construction to crash and we want the
   // verifier to be resilient to malformed code.
   if (op.getNumRegions() != 0) {
-    DominanceInfo domInfo;
+    DominanceInfo domInfo(&op);
     if (failed(verifyDominanceOfContainedRegions(op, domInfo)))
       return failure();
   }
@@ -313,7 +313,6 @@ OperationVerifier::verifyDominanceOfContainedRegions(Operation &op,
     for (Block &block : region) {
       // Dominance is only meaningful inside reachable blocks.
       bool isReachable = domInfo.isReachableFromEntry(&block);
-
       for (Operation &op : block) {
         if (isReachable) {
           // Check that operands properly dominate this use.

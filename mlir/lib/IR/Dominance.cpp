@@ -504,6 +504,7 @@ bool DominanceInfo::properlyDominates(Operation *a, Operation *b) const {
     return it->second;
   }();
 
+
   if (!anode || !bnode) { return false; }
 
   return tree->properlyDominates(anode, bnode);
@@ -522,7 +523,6 @@ bool DominanceInfo::properlyDominates(Value a, Operation *b) const {
     BlockArgument arg = a.cast<BlockArgument>();
     auto ita = this->Block2EntryExit.find(arg.getOwner());
     if (ita != this->Block2EntryExit.end()) {
-      // assert(ita != this->Block2EntryExit.end());
       aNode = ita->second.first;
     }
   }
@@ -532,7 +532,7 @@ bool DominanceInfo::properlyDominates(Value a, Operation *b) const {
     return itb->second;
   }();
 
-  assert(false && "unimplemented");
+  return tree->properlyDominates(aNode, bNode);
   // return properlyDominatesReal(this->tree, aNode, bNode);
   // if (Operation *aOp = a.getDefiningOp()) {
   //   auto ita = this->Op2Node.find(aOp);
