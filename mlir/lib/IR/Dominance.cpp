@@ -55,7 +55,7 @@ static bool hasSSADominance(Operation *op, unsigned index) {
          (!kindInterface || kindInterface.hasSSADominance(index));
 }
 
-const int DEBUG = 1;
+const int DEBUG = 0;
 #define DEBUG_TYPE "dom"
 
 using llvm::dbgs;
@@ -395,7 +395,10 @@ DominanceInfoBase<IsPostDom>::findNearestCommonDominator(Block *a,
 
 template <bool IsPostDom>
 DominanceInfoNode *DominanceInfoBase<IsPostDom>::getNode(Block *a) {
-  assert(false && "unimplemented");
+  auto it = this->Block2EntryExit.find(a);
+  assert(it != this->Block2EntryExit.end());
+  // if post dom return exit else entry
+  return tree->getNode(IsPostDom ? it->second.second : it->second.first);
 }
 
 // template <bool IsPostDom>
@@ -595,34 +598,24 @@ void DominanceInfo::updateDFSNumbers() { assert(false && "unimplemented"); }
 
 /// Returns true if statement 'a' properly postdominates statement b.
 bool PostDominanceInfo::properlyPostDominates(Operation *a, Operation *b) {
-  assert(false && "unimplemented");
-
-  auto *aBlock = a->getBlock(), *bBlock = b->getBlock();
-  auto *aRegion = a->getParentRegion();
-  unsigned aRegionNum = aRegion->getRegionNumber();
-  Operation *ancestor = aRegion->getParentOp();
-
-  // If a or b are not within a block, then a does not post dominate b.
-  if (!aBlock || !bBlock)
-    return false;
-
-  // If the blocks are the same, check if b is before a in the block.
-  if (aBlock == bBlock) {
-    // Dominance changes based on the region type.
-    if (hasSSADominance(ancestor, aRegionNum)) {
-      // If the blocks are the same, then check if b is before a in the block.
-      return b->isBeforeInBlock(a);
+    if (!a || !b) { return false; }
+    DTNode *anode = [&]() -> DTNode * {
+    auto it = this->Op2Node.find(a);
+    if (it == Op2Node.end()) {
+      return nullptr;
     }
-    return true;
-  }
+    return it->second;
+  }();
 
-  // Traverse up b's hierarchy to check if b's block is contained in a's.
-  if (auto *bAncestor = a->getBlock()->findAncestorOpInBlock(*b))
-    // Since we already know that aBlock != bBlock, here bAncestor != b.
-    // a and bAncestor are in the same block; check if 'a' postdominates
-    // bAncestor.
-    return postDominates(a, bAncestor);
+  DTNode *bnode = [&]() -> DTNode * {
+    auto it = this->Op2Node.find(b);
+    if (it == Op2Node.end()) {
+      return nullptr;
+    }
+    return it->second;
+  }();
 
-  // If the blocks are different, check if a's block post dominates b's.
-  return properlyDominates(aBlock, bBlock);
+  if (!anode || !bnode) { return false; }
+
+  return tree->properlyDominates(anode, bnode);
 }
