@@ -234,6 +234,10 @@ class DominanceInfoBase {
 protected:
   using DTBaseT = llvm::DominatorTreeBase<DTNode, IsPostDom>;
   DTBaseT *tree = nullptr;
+  DenseMap<Block *, std::pair<DTNode *, DTNode *>> Block2EntryExit;
+  DenseMap<Operation *, DTNode *> Op2Node;
+  DenseMap<Region *, std::pair<DTNode *, DTNode *>> R2EntryExit;
+
   // DTNode *toplevelEntry = nullptr; // TODO: maybe unused
 public:
   DominanceInfoBase() {}
@@ -256,13 +260,16 @@ public:
 
   /// Return true if there is dominanceInfo for the given region.
   bool hasDominanceInfo(Region *region) {
-    return dominanceInfos.count(region) != 0;
+    return this->tree != nullptr;
+    // return dominanceInfos.count(region) != 0;
   }
 
   /// Get the root dominance node of the given region.
   DominanceInfoNode *getRootNode(Region *region) {
-    assert(dominanceInfos.count(region) != 0);
-    return dominanceInfos[region]->getRootNode();
+    assert(false && "unimplemented");
+    return nullptr;
+    // assert(dominanceInfos.count(region) != 0);
+    // return dominanceInfos[region]->getRootNode();
   }
 
   /// Return the dominance node from the Region containing block A.
@@ -279,7 +286,7 @@ protected:
   bool isReachableFromEntry(Block *a) const;
 
   /// A mapping of regions to their base dominator tree.
-  DenseMap<Region *, std::unique_ptr<DTBaseT>> dominanceInfos;
+  // DenseMap<Region *, std::unique_ptr<DTBaseT>> dominanceInfos;
 
   // a mapping from parent regions to child regions which they dominate
   // DenseMap<Region *, SmallVector<Region *, 4>> domParent2Children;
@@ -289,9 +296,6 @@ protected:
 
   // std::unique_ptr<base> dominanceInfo;
   // DT *dt;
-  DenseMap<Block *, std::pair<DTNode *, DTNode *>> Block2EntryExit;
-  DenseMap<Operation *, DTNode *> Op2Node;
-  DenseMap<Region *, std::pair<DTNode *, DTNode *>> R2EntryExit;
 };
 } // end namespace detail
 
