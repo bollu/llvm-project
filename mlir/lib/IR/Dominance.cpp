@@ -12,6 +12,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/IR/Dominance.h"
+#include "mlir/Analysis/NestedMatcher.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Block.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -54,7 +55,7 @@ static bool hasSSADominance(Operation *op, unsigned index) {
          (!kindInterface || kindInterface.hasSSADominance(index));
 }
 
-const int DEBUG = 1;
+const int DEBUG = 0;
 #define DEBUG_TYPE "dom"
 
 using llvm::dbgs;
@@ -227,14 +228,13 @@ void processRegionPostDom(
   */
 }
 
-template<bool IsPostDom>
-void addSuccessor(DTNode *parent, DTNode *child){
+template <bool IsPostDom>
+void addSuccessor(DTNode *parent, DTNode *child) {
   if (IsPostDom) {
     child->addSuccessor(parent);
   } else {
     parent->addSuccessor(child);
   }
-
 }
 
 void processRegionDom(
@@ -298,7 +298,6 @@ void processRegionDom(
           if (DEBUG) {
             llvm::dbgs() << "creating next block links for |" << Op
                          << "| to: " << NextB.get() << "\n";
-            getchar();
           }
           DTNode *ThisExit = Block2EntryExit[&B].second;
           DTNode *NextEntry = Block2EntryExit[NextB.get()].first;
@@ -354,14 +353,11 @@ void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
     llvm::WriteGraph(O, dt);
   }
 
-  llvm::errs() << "trying recalculate...\n";
   this->tree = new DTBaseT(); // std::make_unique<DTBaseT>();
   tree->recalculate(*dt);
-  llvm::errs() << "\nSUCCESS!\n";
-  llvm::errs() << "\nRECALCULATED tree: |" << this->tree << "|\n";
-  getchar();
-
   if (DEBUG) {
+
+    llvm::dbgs() << "\nRECALCULATED tree: |" << this->tree << "|\n";
 
     for (int i = 0; i < dt->Nodes.size(); ++i) {
       for (int j = 0; j < dt->Nodes.size(); ++j) {
@@ -416,7 +412,8 @@ DominanceInfoBase<IsPostDom>::findNearestCommonDominator(Block *a,
     if (it == this->Block2EntryExit.end()) {
       return nullptr;
     } else {
-      return it->second.first;
+      // if post-dom, ues exit. otherwise use entry.
+      return IsPostDom ? it->second.second : it->second.first;
     }
   }();
 
@@ -425,7 +422,7 @@ DominanceInfoBase<IsPostDom>::findNearestCommonDominator(Block *a,
     if (it == this->Block2EntryExit.end()) {
       return nullptr;
     } else {
-      return it->second.first;
+      return IsPostDom ? it->second.second : it->second.first;
     }
   }();
 
@@ -433,9 +430,11 @@ DominanceInfoBase<IsPostDom>::findNearestCommonDominator(Block *a,
     return nullptr;
   }
 
-  llvm::errs() << "findNearestCommonDominator(na:" << *na << " "
-               << na->DebugIndex << ", nb:" << *nb << " " << nb->DebugIndex
-               << ", tree: " << this->tree << ")\n";
+  if (DEBUG) {
+    llvm::errs() << "findNearestCommonDominator(na:" << *na << " "
+                 << na->DebugIndex << ", nb:" << *nb << " " << nb->DebugIndex
+                 << ", tree: " << this->tree << ")\n";
+  }
   assert(na);
   assert(nb);
 
@@ -444,6 +443,14 @@ DominanceInfoBase<IsPostDom>::findNearestCommonDominator(Block *a,
   if (nearest->kind == DTNode::Kind::DTBlock) {
     return nearest->getBlock();
   } else {
+    // assert(false && "found nearest op node!");
+    if (DEBUG) {
+      llvm::errs() << "findNearestCommonDominator found nearest as op node (na:"
+                   << *na << " " << na->DebugIndex << ", nb:" << *nb << " "
+                   << nb->DebugIndex << ", nearest: " << *nearest << ")\n";
+    }
+
+    llvm::DomTreeNodeBase<DTNode> *nearestBase = tree->getNode(nearest);
     return nearest->getOp()->getBlock();
   }
 }
@@ -453,50 +460,57 @@ DominanceInfoNode *DominanceInfoBase<IsPostDom>::getNode(Block *a) {
   assert(false && "unimplemented");
 }
 
-template<bool IsPostDom>
-bool properlyDominatesReal(llvm::DominatorTreeBase<DTNode, IsPostDom> *tree,
-                           DTNode *a, DTNode *b) {
-  assert(tree && "expected legal tree");
-  if (a == nullptr || b == nullptr) {
-    return false;
-  }
+// template <bool IsPostDom>
+// bool properlyDominatesReal(llvm::DominatorTreeBase<DTNode, IsPostDom> *tree,
+//                            DTNode *a, DTNode *b) {
+//   assert(tree && "expected legal tree");
+//   if (a == nullptr || b == nullptr) {
+//     return false;
+//   }
 
-  if (a == b) {
-    return false;
-  }
+//   if (a == b) {
+//     return false;
+//   }
 
-  if (a->kind == DTNode::Kind::DTToplevelEntry) {
-    return true;
-  } else if (a->kind == DTNode::Kind::DTBlock) {
-    // if `b` is a block, then it's not `a` (since we've already checked). So
-    // dom => properly dom. if `b` is an op, then the DTNode could be `a` (since
-    // it's an op), but a block dominantes all ops in it, so properly d
-    return tree->dominates(a, b);
-  } else {
-    // we setup dominance correctly
-    assert(a->kind == DTNode::Kind::DTOpExit);
-    return tree->properlyDominates(a, b);
-  }
-}
-
+//   if (a->kind == DTNode::Kind::DTToplevelEntry) {
+//     return true;
+//   } else if (a->kind == DTNode::Kind::DTBlock) {
+//     // if `b` is a block, then it's not `a` (since we've already checked). So
+//     // dom => properly dom. if `b` is an op, then the DTNode could be `a`
+//     (since
+//     // it's an op), but a block dominantes all ops in it, so properly d
+//     return tree->dominates(a, b);
+//   } else {
+//     // we setup dominance correctly
+//     assert(a->kind == DTNode::Kind::DTOpExit);
+//     return tree->properlyDominates(a, b);
+//   }
+// }
 
 /// Return true if the specified block A properly dominates block B.
 template <bool IsPostDom>
 bool DominanceInfoBase<IsPostDom>::properlyDominates(Block *a, Block *b) const {
-  if (a == nullptr || b == nullptr) { return false; }
-  DTNode *anode = [&]() -> DTNode* {
+  if (a == nullptr || b == nullptr) {
+    return false;
+  }
+  DTNode *anode = [&]() -> DTNode * {
     auto it = this->Block2EntryExit.find(a);
-    if (it == Block2EntryExit.end()) { return nullptr; }
+    if (it == Block2EntryExit.end()) {
+      return nullptr;
+    }
     return it->second.first;
   }();
 
-  DTNode *bnode = [&]() -> DTNode* {
+  DTNode *bnode = [&]() -> DTNode * {
     auto it = this->Block2EntryExit.find(b);
-    if (it == Block2EntryExit.end()) { return nullptr; }
+    if (it == Block2EntryExit.end()) {
+      return nullptr;
+    }
     return it->second.first;
   }();
 
-  return properlyDominatesReal<IsPostDom>(tree, anode, bnode);
+  return tree->properlyDominates(anode, bnode);
+  // return properlyDominatesReal<IsPostDom>(tree, anode, bnode);
 }
 
 /// Return true if the specified block is reachable from the entry block of its
@@ -528,8 +542,6 @@ template class detail::DominanceInfoBase</*IsPostDom=*/false>;
 //===----------------------------------------------------------------------===//
 // DominanceInfo
 //===----------------------------------------------------------------------===//
-
-
 
 /// Return true if operation A properly dominates operation B.
 bool DominanceInfo::properlyDominates(Operation *a, Operation *b) const {
@@ -591,7 +603,7 @@ bool DominanceInfo::properlyDominates(Value a, Operation *b) const {
   }();
 
   assert(false && "unimplemented");
-  return properlyDominatesReal(this->tree, aNode, bNode);
+  // return properlyDominatesReal(this->tree, aNode, bNode);
   // if (Operation *aOp = a.getDefiningOp()) {
   //   auto ita = this->Op2Node.find(aOp);
   //   auto itb = this->Op2Node.find(b);
@@ -648,10 +660,7 @@ bool DominanceInfo::properlyDominates(Value a, Operation *b) const {
   // return dominates(a.cast<BlockArgument>().getOwner(), b->getBlock());
 }
 
-void DominanceInfo::updateDFSNumbers() {
-  assert(false && "unimplemented");
-
-}
+void DominanceInfo::updateDFSNumbers() { assert(false && "unimplemented"); }
 
 //===----------------------------------------------------------------------===//
 // PostDominanceInfo
