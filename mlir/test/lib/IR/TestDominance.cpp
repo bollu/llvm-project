@@ -57,7 +57,9 @@ public:
                       bool printCommonDominatorInfo) {
     DenseSet<Block *> parentVisited;
     operation->walk([&](Operation *op) {
+      if (op == operation) { return; }
       Block *block = op->getBlock();
+
       if (!parentVisited.insert(block).second)
         return;
 
