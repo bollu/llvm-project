@@ -289,6 +289,9 @@ protected:
   /// block of its region.
   bool isReachableFromEntry(Block *a) const;
 
+
+  bool isReachableFromParentRegion(Block *a) const;
+
   /// A mapping of regions to their base dominator tree.
   // DenseMap<Region *, std::unique_ptr<DTBaseT>> dominanceInfos;
 
@@ -316,6 +319,10 @@ public:
   /// Graph region, all blocks are reachable.
   bool isReachableFromEntry(Block *a) const {
     return super::isReachableFromEntry(a);
+  }
+
+  bool isReachableFromParentRegion(Block *a) const {
+    return super::isReachableFromParentRegion(a);
   }
 
   /// Return true if operation A properly dominates operation B, i.e. if A and B

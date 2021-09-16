@@ -315,11 +315,12 @@ OperationVerifier::verifyDominanceOfContainedRegions(Operation &op,
       bool isReachable = domInfo.isReachableFromEntry(&block);
       for (Operation &op : block) {
         if (isReachable) {
+          llvm::errs() << "checking: |" << op << "|\n";
           // Check that operands properly dominate this use.
           for (auto operand : llvm::enumerate(op.getOperands())) {
             if (domInfo.properlyDominates(operand.value(), &op))
               continue;
-            llvm::errs() << "\n\t [" << operand.value() << "] does not properly dominate [" << op << "]\n";
+            // llvm::errs() << "\n\t [" << operand.value() << "] does not properly dominate [" << op << "]\n";
             diagnoseInvalidOperandDominance(op, operand.index());
             return failure();
           }

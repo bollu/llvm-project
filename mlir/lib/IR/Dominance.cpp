@@ -452,6 +452,31 @@ bool DominanceInfoBase<IsPostDom>::isReachableFromEntry(Block *a) const {
   }
 }
 
+template <bool IsPostDom>
+bool DominanceInfoBase<IsPostDom>::isReachableFromParentRegion(Block *a) const {
+  Region *r = a->getParent();
+  auto rit = this->R2EntryExit.find(r);
+  if (rit == this->R2EntryExit.end()) { return false; }
+  
+  if (!IsPostDom) {
+    DTNode *aNode = [&]() {
+      auto it = this->Block2EntryExit.find(a);
+      if (it != this->Block2EntryExit.end()) {
+        return it->second.first;
+      } else {
+        return (DTNode *)nullptr;
+      }
+    }();
+
+    if (aNode) {
+      return this->tree->isReachableFromEntry(aNode);
+    } else {
+      return false;
+    }
+  } else {
+  }
+}
+
 template class detail::DominanceInfoBase</*IsPostDom=*/true>;
 template class detail::DominanceInfoBase</*IsPostDom=*/false>;
 
