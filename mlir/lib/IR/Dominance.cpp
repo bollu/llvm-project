@@ -401,32 +401,6 @@ DominanceInfoNode *DominanceInfoBase<IsPostDom>::getNode(Block *a) {
   return tree->getNode(IsPostDom ? it->second.second : it->second.first);
 }
 
-// template <bool IsPostDom>
-// bool properlyDominatesReal(llvm::DominatorTreeBase<DTNode, IsPostDom> *tree,
-//                            DTNode *a, DTNode *b) {
-//   assert(tree && "expected legal tree");
-//   if (a == nullptr || b == nullptr) {
-//     return false;
-//   }
-
-//   if (a == b) {
-//     return false;
-//   }
-
-//   if (a->kind == DTNode::Kind::DTToplevelEntry) {
-//     return true;
-//   } else if (a->kind == DTNode::Kind::DTBlock) {
-//     // if `b` is a block, then it's not `a` (since we've already checked). So
-//     // dom => properly dom. if `b` is an op, then the DTNode could be `a`
-//     (since
-//     // it's an op), but a block dominantes all ops in it, so properly d
-//     return tree->dominates(a, b);
-//   } else {
-//     // we setup dominance correctly
-//     assert(a->kind == DTNode::Kind::DTOpExit);
-//     return tree->properlyDominates(a, b);
-//   }
-// }
 
 /// Return true if the specified block A properly dominates block B.
 template <bool IsPostDom>
@@ -506,33 +480,52 @@ bool DominanceInfo::properlyDominates(Operation *a, Operation *b) const {
 
 
   if (!anode || !bnode) { return false; }
-
-  return tree->properlyDominates(anode, bnode);
+  if (anode == bnode) {
+    // both in the same block, check ordering.
+    // assert(anode->kind == DTNode::Kind::DTBlock);
+    assert(a->getBlock() == b->getBlock()); 
+    return a->isBeforeInBlock(b);    
+  } else {
+    return tree->properlyDominates(anode, bnode);
+  }
 }
 
 /// Return true if value A properly dominates operation B.
 bool DominanceInfo::properlyDominates(Value a, Operation *b) const {
-  DTNode *aNode = nullptr;
-  if (Operation *aOp = a.getDefiningOp()) {
-    auto ita = this->Op2Node.find(aOp);
-    assert(ita != Op2Node.end());
-    aNode = ita->second;
-  } else {
-    // can add new BBs.
-    assert(a.isa<BlockArgument>() && "value must be op or block argument");
-    BlockArgument arg = a.cast<BlockArgument>();
-    auto ita = this->Block2EntryExit.find(arg.getOwner());
-    if (ita != this->Block2EntryExit.end()) {
-      aNode = ita->second.first;
-    }
-  }
   DTNode *bNode = [&]() {
     auto itb = this->Op2Node.find(b);
     assert(itb != this->Op2Node.end());
     return itb->second;
   }();
 
-  return tree->properlyDominates(aNode, bNode);
+
+  if (Operation *aOp = a.getDefiningOp()) {
+    auto ita = this->Op2Node.find(aOp);
+    assert(ita != Op2Node.end());
+    DTNode *aNode = ita->second;
+    // both are the same op. return false.
+    if (aOp == b) { return false; }
+
+    // both operations in the same block.
+    // are different ops with same node. Ie, they must be in the same block.
+    if (aNode == bNode) {
+      assert(aOp->getBlock() == b->getBlock());
+      // assert(aNode->kind == DTNode::Kind::DTBlock);
+      return aOp->isBeforeInBlock(b);
+
+    } else {
+      return tree->properlyDominates(aNode, bNode);
+    }
+  } else {
+    assert(a.isa<BlockArgument>() && "value must be op or block argument");
+    BlockArgument arg = a.cast<BlockArgument>();
+    auto ita = this->Block2EntryExit.find(arg.getOwner());
+    if (ita == this->Block2EntryExit.end()) { return false; }
+    // argument block properly dominates operation if operation is in the block.
+    DTNode *aNode = ita->second.first;
+    return tree->dominates(aNode, bNode);
+  }
+
   // return properlyDominatesReal(this->tree, aNode, bNode);
   // if (Operation *aOp = a.getDefiningOp()) {
   //   auto ita = this->Op2Node.find(aOp);

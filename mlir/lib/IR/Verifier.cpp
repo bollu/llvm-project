@@ -319,7 +319,7 @@ OperationVerifier::verifyDominanceOfContainedRegions(Operation &op,
           for (auto operand : llvm::enumerate(op.getOperands())) {
             if (domInfo.properlyDominates(operand.value(), &op))
               continue;
-
+            llvm::errs() << "\n\t [" << operand.value() << "] does not properly dominate [" << op << "]\n";
             diagnoseInvalidOperandDominance(op, operand.index());
             return failure();
           }
