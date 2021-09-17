@@ -177,14 +177,29 @@ struct GraphTraits<DT *> : public GraphTraits<DTNode *> {
 
 template<>
 struct DOTGraphTraits<const DT*> : public DefaultDOTGraphTraits {
-    explicit DOTGraphTraits(bool isSimple=false) :
+    explicit DOTGraphTraits(bool isSimple=true) :
       DefaultDOTGraphTraits(isSimple) {}
 
   static std::string getNodeLabel(const DTNode *Node,
                                   const DT *&Graph) {
+    assert(false);
     return std::to_string(Node->DebugIndex);
   }
 };
+
+// template<>
+// struct DOTGraphTraits<DT*> : public DefaultDOTGraphTraits {
+//     explicit DOTGraphTraits(bool isSimple=true) :
+//       DefaultDOTGraphTraits(isSimple) {}
+
+//   static std::string getNodeLabel(const DTNode *Node,
+//                                   const DT *&Graph) {
+//     assert(false);
+//     return std::to_string(Node->DebugIndex);
+//   }
+// };
+
+
 
 } // namespace llvm
 

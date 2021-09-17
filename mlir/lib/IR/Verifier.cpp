@@ -314,8 +314,8 @@ OperationVerifier::verifyDominanceOfContainedRegions(Operation &op,
       // Dominance is only meaningful inside reachable blocks.
       bool isReachable = domInfo.isReachableFromEntry(&block);
       for (Operation &op : block) {
-        if (isReachable) {
-          llvm::errs() << "checking: |" << op << "|\n";
+        if (true || isReachable) {
+          // llvm::errs() << "checking: |" << op << "|\n";
           // Check that operands properly dominate this use.
           for (auto operand : llvm::enumerate(op.getOperands())) {
             if (domInfo.properlyDominates(operand.value(), &op))
