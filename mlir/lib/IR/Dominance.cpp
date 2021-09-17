@@ -56,7 +56,7 @@ static bool hasSSADominance(Operation *op, unsigned index) {
          (!kindInterface || kindInterface.hasSSADominance(index));
 }
 
-const int DEBUG = 1;
+const int DEBUG = 0;
 #define DEBUG_TYPE "dom"
 
 using llvm::dbgs;
