@@ -286,6 +286,9 @@ public:
   bool hasSSADominance(Operation *op, unsigned index);
   bool hasSSADominance(Region &r);
 
+  DTNode *getRootNode() {
+    return this->tree->getRootNode()->getBlock();
+  }
 
   /// Get the root dominance node of the given region.
   DominanceInfoNode *getRootNode(Region *region) {
