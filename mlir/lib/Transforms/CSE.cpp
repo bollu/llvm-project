@@ -193,20 +193,20 @@ void CSE::simplifyRegion(ScopedMapTy &knownValues, Region &region) {
   if (region.empty())
     return;
 
-  // bool hasSSADominance = domInfo->hasSSADominance(&region);
-  bool hasSSADominance = false; /*conservative*/
+  const bool hasSSADom = this->domInfo->hasSSADominance(region);
+  // bool hasSSADominance = false; /*conservative*/
 
   // If the region only contains one block, then simplify it directly.
   if (region.hasOneBlock()) {
     ScopedMapTy::ScopeTy scope(knownValues);
-    simplifyBlock(knownValues, &region.front(), hasSSADominance);
+    simplifyBlock(knownValues, &region.front(), hasSSADom);
     return;
   }
 
   // If the region does not have dominanceInfo, then skip it.
   // TODO: Regions without SSA dominance should define a different
   // traversal order which is appropriate and can be used here.
-  if (!hasSSADominance)
+  if (!hasSSADom)
     return;
 
   // Note, deque is being used here because there was significant performance
@@ -221,6 +221,8 @@ void CSE::simplifyRegion(ScopedMapTy &knownValues, Region &region) {
   stack.emplace_back(std::make_unique<CFGStackNode>(
       knownValues, domInfo->getRootNode(&region)));
 
+  assert(false && "should have died here -_^");
+
   while (!stack.empty()) {
     auto &currentNode = stack.back();
 
@@ -230,7 +232,7 @@ void CSE::simplifyRegion(ScopedMapTy &knownValues, Region &region) {
       // Block *currentBlock = currentNode->node->getBlock();
       Block *currentBlock = nullptr;
       simplifyBlock(knownValues, currentBlock,
-                    hasSSADominance);
+                    hasSSADom);
     }
 
     // Otherwise, check to see if we need to process a child node.
@@ -247,6 +249,7 @@ void CSE::simplifyRegion(ScopedMapTy &knownValues, Region &region) {
 }
 
 void CSE::runOnOperation() {
+
   /// A scoped hash table of defining operations within a region.
   ScopedMapTy knownValues;
 

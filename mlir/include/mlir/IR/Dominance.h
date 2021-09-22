@@ -283,6 +283,10 @@ public:
     // return dominanceInfos.count(region) != 0;
   }
 
+  bool hasSSADominance(Operation *op, unsigned index);
+  bool hasSSADominance(Region &r);
+
+
   /// Get the root dominance node of the given region.
   DominanceInfoNode *getRootNode(Region *region) {
     assert(false && "unimplemented");
@@ -293,6 +297,7 @@ public:
 
   /// Return the dominance node from the Region containing block A.
   DominanceInfoNode *getNode(Block *a);
+
 
 protected:
   using super = DominanceInfoBase<IsPostDom>;
@@ -414,6 +419,8 @@ public:
     return a == b || properlyPostDominates(a, b);
   }
 };
+
+
 
 } //  end namespace mlir
 

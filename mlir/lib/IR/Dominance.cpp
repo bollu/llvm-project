@@ -48,13 +48,6 @@ template class llvm::DominatorTreeBase<Block, /*IsPostDom=*/false>;
 template class llvm::DominatorTreeBase<Block, /*IsPostDom=*/true>;
 template class llvm::DomTreeNodeBase<Block>;
 
-/// Return true if the region with the given index inside the operation
-/// has SSA dominance.
-static bool hasSSADominance(Operation *op, unsigned index) {
-  auto kindInterface = dyn_cast<RegionKindInterface>(op);
-  return op->isRegistered() &&
-         (!kindInterface || kindInterface.hasSSADominance(index));
-}
 
 const int DEBUG = 0;
 #define DEBUG_TYPE "dom"
@@ -470,6 +463,25 @@ bool DominanceInfoBase<IsPostDom>::isReachableFromParentRegion(Block *a) const {
 template class detail::DominanceInfoBase</*IsPostDom=*/true>;
 template class detail::DominanceInfoBase</*IsPostDom=*/false>;
 
+
+/// Return true if the region with the given index inside the operation
+/// has SSA dominance.
+template <bool IsPostDom>
+bool DominanceInfoBase<IsPostDom>::hasSSADominance(Operation *op, unsigned index) {
+  auto kindInterface = dyn_cast<RegionKindInterface>(op);
+  return op->isRegistered() &&
+         (!kindInterface || kindInterface.hasSSADominance(index));
+}
+
+template <bool IsPostDom>
+bool DominanceInfoBase<IsPostDom>::hasSSADominance(Region &r) {
+  Operation *op = r.getParentOp();
+  const int index =  r.getRegionNumber();
+  if (!op) { return false; }
+  return hasSSADominance(op, index);
+}
+
+
 //===----------------------------------------------------------------------===//
 // DominanceInfo
 //===----------------------------------------------------------------------===//
@@ -564,3 +576,5 @@ bool PostDominanceInfo::properlyPostDominates(Operation *a, Operation *b) {
 
   return tree->properlyDominates(anode, bnode);
 }
+
+
