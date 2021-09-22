@@ -289,8 +289,12 @@ public:
 
   /// Get the root dominance node of the given region.
   DominanceInfoNode *getRootNode(Region *region) {
-    assert(false && "unimplemented");
-    return nullptr;
+    auto it = this->R2EntryExit.find(region);
+    assert(it != this->R2EntryExit.end());
+    DTNode *node = it->second.first;
+    return this->tree->getNode(node);
+    // assert(false && "unimplemented");
+    // return nullptr;
     // assert(dominanceInfos.count(region) != 0);
     // return dominanceInfos[region]->getRootNode();
   }

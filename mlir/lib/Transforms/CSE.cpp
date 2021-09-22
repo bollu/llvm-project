@@ -221,7 +221,7 @@ void CSE::simplifyRegion(ScopedMapTy &knownValues, Region &region) {
   stack.emplace_back(std::make_unique<CFGStackNode>(
       knownValues, domInfo->getRootNode(&region)));
 
-  assert(false && "should have died here -_^");
+  // assert(false && "should have died here -_^");
 
   while (!stack.empty()) {
     auto &currentNode = stack.back();
@@ -231,6 +231,7 @@ void CSE::simplifyRegion(ScopedMapTy &knownValues, Region &region) {
       currentNode->processed = true;
       // Block *currentBlock = currentNode->node->getBlock();
       Block *currentBlock = nullptr;
+      assert(false && "should crash here!");
       simplifyBlock(knownValues, currentBlock,
                     hasSSADom);
     }
