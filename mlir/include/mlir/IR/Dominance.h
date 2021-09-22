@@ -250,8 +250,9 @@ class Operation;
 namespace detail {
 template <bool IsPostDom>
 class DominanceInfoBase {
+public:
+    using DTBaseT = llvm::DominatorTreeBase<DTNode, IsPostDom>;
 protected:
-  using DTBaseT = llvm::DominatorTreeBase<DTNode, IsPostDom>;
   DTBaseT *tree = nullptr;
   DenseMap<Block *, std::pair<DTNode *, DTNode *>> Block2EntryExit;
   DenseMap<Operation *, DTNode *> Op2Node;
@@ -286,8 +287,8 @@ public:
   bool hasSSADominance(Operation *op, unsigned index);
   bool hasSSADominance(Region &r);
 
-  DTNode *getRootNode() {
-    return this->tree->getRootNode()->getBlock();
+  llvm::DomTreeNodeBase<DTNode> *getRootNode() {
+    return this->tree->getRootNode();
   }
 
   /// Get the root dominance node of the given region.
@@ -304,6 +305,7 @@ public:
 
   /// Return the dominance node from the Region containing block A.
   DominanceInfoNode *getNode(Block *a);
+
 
 
 protected:

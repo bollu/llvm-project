@@ -19,7 +19,9 @@
 #include "llvm/ADT/DenseMapInfo.h"
 #include "llvm/ADT/Hashing.h"
 #include "llvm/ADT/ScopedHashTable.h"
+#include "llvm/IR/Dominators.h"
 #include "llvm/Support/Allocator.h"
+#include "llvm/Support/GenericDomTree.h"
 #include "llvm/Support/RecyclingAllocator.h"
 #include <deque>
 
@@ -79,11 +81,10 @@ struct CSE : public CSEBase<CSE> {
 
   /// Attempt to eliminate a redundant operation. Returns success if the
   /// operation was marked for removal, failure otherwise.
-  LogicalResult simplifyOperation(ScopedMapTy &knownValues, Operation *op,
-                                  bool hasSSADominance);
+  void simplifyOperation(ScopedMapTy &knownValues, Operation &op);
   void simplifyBlock(ScopedMapTy &knownValues, Block *bb, bool hasSSADominance);
   void simplifyRegion(ScopedMapTy &knownValues, Region &region);
-  void simplifyDomNode(ScopedMapTy &knownValues, DTNode *node);
+  void simplifyDomNode(ScopedMapTy &knownValues, llvm::DomTreeNodeBase<DTNode> *node);
 
   void runOnOperation() override;
 
@@ -95,72 +96,49 @@ private:
 } // end anonymous namespace
 
 /// Attempt to eliminate a redundant operation.
-LogicalResult CSE::simplifyOperation(ScopedMapTy &knownValues, Operation *op,
-                                     bool hasSSADominance) {
-  assert(false);
-  // // Don't simplify terminator operations.
-  // if (op->hasTrait<OpTrait::IsTerminator>())
-  //   return failure();
+void CSE::simplifyOperation(ScopedMapTy &knownValues, Operation &op) {
+  if (op.hasTrait<OpTrait::IsTerminator>()) {
+    return;
+  }
+  // If the operation is already trivially dead just add it to the erase
+  // list.
+  if (isOpTriviallyDead(&op)) {
+    opsToErase.push_back(&op);
+    return;
+  }
 
-  // // If the operation is already trivially dead just add it to the erase list.
-  // if (isOpTriviallyDead(op)) {
-  //   opsToErase.push_back(op);
-  //   ++numDCE;
-  //   return success();
-  // }
+  if (op.getNumRegions() > 0) { return; }
 
-  // // Don't simplify operations with nested blocks. We don't currently model
-  // // equality comparisons correctly among other things. It is also unclear
-  // // whether we would want to CSE such operations.
-  // if (op->getNumRegions() != 0)
-  //   return failure();
+  // Don't simplify operations with nested blocks. We don't currently model
+  // equality comparisons correctly among other things. It is also unclear
+  // whether we would want to CSE such operations.
+  // assert(op.getNumRegions() == 0);
 
-  // // TODO: We currently only eliminate non side-effecting
-  // // operations.
-  // if (!MemoryEffectOpInterface::hasNoEffect(op))
-  //   return failure();
+  // TODO: We currently only eliminate non side-effecting
+  // operations.
+  if (!MemoryEffectOpInterface::hasNoEffect(&op)) {
+    return;
+  }
+  // Look for an existing definition for the operation.
+  auto *existing = knownValues.lookup(&op);
+  if (!existing) {
+    knownValues.insert(&op, &op);
+    return;
+  }
+  // If we find one then replace all uses of the current operation with the
+  // existing one and mark it for deletion. We can only replace an operand
+  // in an operation if it has not been visited yet. If the region has SSA
+  // dominance, then we are guaranteed to have not visited any use of the
+  // current operation
+  // llvm::errs() << "###replacing\n";
+  // llvm::errs() << "\t" << op;
+  // llvm::errs() << "\n\tby: " << *existing;
+  // llvm::errs() << "\n==\n";
+  // getchar();
 
-  // // Look for an existing definition for the operation.
-  // if (auto *existing = knownValues.lookup(op)) {
-
-  //   // If we find one then replace all uses of the current operation with the
-  //   // existing one and mark it for deletion. We can only replace an operand in
-  //   // an operation if it has not been visited yet.
-  //   if (hasSSADominance) {
-  //     // If the region has SSA dominance, then we are guaranteed to have not
-  //     // visited any use of the current operation.
-  //     op->replaceAllUsesWith(existing);
-  //     opsToErase.push_back(op);
-  //   } else {
-  //     // When the region does not have SSA dominance, we need to check if we
-  //     // have visited a use before replacing any use.
-  //     for (auto it : llvm::zip(op->getResults(), existing->getResults())) {
-  //       std::get<0>(it).replaceUsesWithIf(
-  //           std::get<1>(it), [&](OpOperand &operand) {
-  //             return !knownValues.count(operand.getOwner());
-  //           });
-  //     }
-
-  //     // There may be some remaining uses of the operation.
-  //     if (op->use_empty())
-  //       opsToErase.push_back(op);
-  //   }
-
-  //   // If the existing operation has an unknown location and the current
-  //   // operation doesn't, then set the existing op's location to that of the
-  //   // current op.
-  //   if (existing->getLoc().isa<UnknownLoc>() &&
-  //       !op->getLoc().isa<UnknownLoc>()) {
-  //     existing->setLoc(op->getLoc());
-  //   }
-
-  //   ++numCSE;
-  //   return success();
-  // }
-
-  // // Otherwise, we add this operation to the known values map.
-  // knownValues.insert(op, op);
-  return failure();
+  assert(&op != existing);
+  op.replaceAllUsesWith(existing);
+  opsToErase.push_back(&op);
 }
 
 void CSE::simplifyBlock(ScopedMapTy &knownValues, Block *bb,
@@ -175,8 +153,10 @@ void CSE::simplifyBlock(ScopedMapTy &knownValues, Block *bb,
   //   if (op.getNumRegions() == 0)
   //     continue;
 
-  //   // If this operation is isolated above, we can't process nested regions with
-  //   // the given 'knownValues' map. This would cause the insertion of implicit
+  //   // If this operation is isolated above, we can't process nested regions
+  //   with
+  //   // the given 'knownValues' map. This would cause the insertion of
+  //   implicit
   //   // captures in explicit capture only regions.
   //   if (op.mightHaveTrait<OpTrait::IsIsolatedFromAbove>()) {
   //     ScopedMapTy nestedKnownValues;
@@ -213,12 +193,15 @@ void CSE::simplifyRegion(ScopedMapTy &knownValues, Region &region) {
   // if (!hasSSADom)
   //   return;
 
-  // // Note, deque is being used here because there was significant performance
+  // // Note, deque is being used here because there was significant
+  // performance
   // // gains over vector when the container becomes very large due to the
   // // specific access patterns. If/when these performance issues are no
-  // // longer a problem we can change this to vector. For more information see
+  // // longer a problem we can change this to vector. For more information
+  // see
   // // the llvm mailing list discussion on this:
-  // // http://lists.llvm.org/pipermail/llvm-commits/Week-of-Mon-20120116/135228.html
+  // //
+  // http://lists.llvm.org/pipermail/llvm-commits/Week-of-Mon-20120116/135228.html
   // std::deque<std::unique_ptr<CFGStackNode>> stack;
 
   // // Process the nodes of the dom tree for this region.
@@ -252,65 +235,78 @@ void CSE::simplifyRegion(ScopedMapTy &knownValues, Region &region) {
   // }
 }
 
-void CSE::simplifyDomNode(ScopedMapTy &knownValues, DTNode *node) {
-  static int scopeCount = 0;
-  // always open a new scope?
+void CSE::simplifyDomNode(ScopedMapTy &knownValues, llvm::DomTreeNodeBase<DTNode> *node) {
+  // llvm::errs() << "at Domtree node: " << node << "\n";
   ScopedMapTy::ScopeTy scope(knownValues);
-  ++scopeCount;
-
-  if (node->kind == DTNode::Kind::DTBlock) {
-    
-    // llvm::errs() << "visiting BB[" << scopeCount << "]\n";
-    // node->getBlock()->print(llvm::errs());
-    // llvm::errs() << "\n---\n";
-
-    for (auto &op : *node->getBlock()) {
-      bool hasSSADom = true;
-      if (!hasSSADom) {
-        continue;
-      }
-      if (op.hasTrait<OpTrait::IsTerminator>())
-        continue;
-      // If the operation is already trivially dead just add it to the erase
-      // list.
-      if (isOpTriviallyDead(&op)) {
-        opsToErase.push_back(&op);
-        continue;
-      }
-
-      // Don't simplify operations with nested blocks. We don't currently model
-      // equality comparisons correctly among other things. It is also unclear
-      // whether we would want to CSE such operations.
-      if (op.getNumRegions() != 0) {
-        continue;
-      }
-
-      // TODO: We currently only eliminate non side-effecting
-      // operations.
-      if (!MemoryEffectOpInterface::hasNoEffect(&op)) {
-        continue;
-      }
-      // Look for an existing definition for the operation.
-      auto *existing = knownValues.lookup(&op);
-      if (!existing) {
-        knownValues.insert(&op, &op);
-        continue;
-      }
-      // If we find one then replace all uses of the current operation with the
-      // existing one and mark it for deletion. We can only replace an operand
-      // in an operation if it has not been visited yet. If the region has SSA
-      // dominance, then we are guaranteed to have not visited any use of the
-      // current operation.
-      op.replaceAllUsesWith(existing);
-      opsToErase.push_back(&op);
-    } // end loop over ops
-  }   // node is block op.
-
-  for (DTNode *succ : node->getSuccessors()) {
+  // recall that this is the "slow" implmentation where EACH op has an exit.
+  DTNode *dtnode = node->getBlock();
+  if (dtnode->kind == DTNode::Kind::DTOpExit) {
+      auto it = dtnode->getOp();
+    this->simplifyOperation(knownValues, *it);
+  }
+  for (llvm::DomTreeNodeBase<DTNode> *succ : node->children() ) {
     simplifyDomNode(knownValues, succ);
   }
-  scopeCount--;
 
+  // // TODO: convert to BFS, since we can now have "islands" of DAGs.
+  // // We now have a dominator DAG.
+  // static int scopeCount = 0;
+  // // always open a new scope?
+  // ScopedMapTy::ScopeTy scope(knownValues);
+  // ++scopeCount;
+  // DTNode *dtnode = node->getBlock();
+  // if (dtnode->kind == DTNode::Kind::DTBlock) {
+
+  //   llvm::errs() << "visiting BB[" << scopeCount << "]\n";
+  //   dtnode->getBlock()->print(llvm::errs());
+  //   llvm::errs() << "\n---\n";
+  //   getchar();
+
+  //   for (auto &op : *dtnode->getBlock()) {
+  //     bool hasSSADom = true;
+  //     if (!hasSSADom) {
+  //       continue;
+  //     }
+  //     // operations with regions are handled after their exit.
+  //     if (op.getNumRegions() != 0) {
+  //       break;
+  //     }
+
+  //     this->simplifyOperation(knownValues, op);
+  //   } // end loop over ops
+  // } else if (dtnode->kind == DTNode::Kind::DTOpExit) {
+  //   // can now process eveyrthing after the op.
+  //   // TODO: consider hash-consing the op itself!
+
+  //   // start *after* this op.
+
+  //   llvm::errs() << "visiting op exit[" << scopeCount << "]\n";
+  //   dtnode->getOp()->print(llvm::errs());
+  //   llvm::errs() << "\n---\n";
+  //   getchar();
+
+  //   auto it = dtnode->getOp()->getIterator();
+  //   ++it;
+  //   for (it; it != dtnode->getOp()->getBlock()->end(); ++it) {
+  //     // process ops till the next op with a region.
+  //     bool hasSSADom = true;
+  //     if (!hasSSADom) {
+  //       continue;
+  //     }
+  //     // operations with regions are handled after their exit.
+  //     if (it->getNumRegions() != 0) {
+  //       break;
+  //     }
+
+  //     this->simplifyOperation(knownValues, *it);
+  //   }
+  // }
+
+  // // TODO: use BFS, not DFS. That way, if we have an op with many regions, we
+  // // will complete all the regions before navigating to the OpExit! op1 ->
+  // // [r1, r2] -> op1exit -> op2. we want to have completed processing r1, r2,
+  // // beore we being processing op2.
+  // scopeCount--;
 };
 
 void CSE::runOnOperation() {
@@ -320,10 +316,11 @@ void CSE::runOnOperation() {
 
   domInfo = &getAnalysis<DominanceInfo>();
   Operation *rootOp = getOperation();
+
   this->simplifyDomNode(knownValues, domInfo->getRootNode());
-  llvm::errs() << "function running CSE on:\n===\n";
-  this->getOperation()->print(llvm::errs());
-  llvm::errs() << "\n===\n"; 
+  // llvm::errs() << "function running CSE on:\n===\n";
+  // this->getOperation()->print(llvm::errs());
+  // llvm::errs() << "\n===\n";
 
   /// Erase any operations that were marked as dead during simplification.
   for (auto *op : opsToErase) {
