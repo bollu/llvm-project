@@ -24,7 +24,7 @@
 #include "llvm/Support/GenericDomTree.h"
 #include "llvm/Support/RecyclingAllocator.h"
 #include <deque>
-
+#include <queue>
 using namespace mlir;
 
 namespace {
@@ -236,12 +236,17 @@ void CSE::simplifyRegion(ScopedMapTy &knownValues, Region &region) {
 }
 
 void CSE::simplifyDomNode(ScopedMapTy &knownValues, llvm::DomTreeNodeBase<DTNode> *node) {
-  // llvm::errs() << "at Domtree node: " << node << "\n";
+  llvm::errs() << "at Domtree node: " << node << "\n";
   ScopedMapTy::ScopeTy scope(knownValues);
   // recall that this is the "slow" implmentation where EACH op has an exit.
   DTNode *dtnode = node->getBlock();
   if (dtnode->kind == DTNode::Kind::DTOpExit) {
       auto it = dtnode->getOp();
+    llvm::errs() << "visiting op exit\n";
+    dtnode->getOp()->print(llvm::errs());
+    llvm::errs() << "\n---\n";
+    getchar();
+
     this->simplifyOperation(knownValues, *it);
   }
   for (llvm::DomTreeNodeBase<DTNode> *succ : node->children() ) {
@@ -317,7 +322,36 @@ void CSE::runOnOperation() {
   domInfo = &getAnalysis<DominanceInfo>();
   Operation *rootOp = getOperation();
 
-  this->simplifyDomNode(knownValues, domInfo->getRootNode());
+  // std::map<llvm::DomTreeNodeBase<DTNode> *, int> visitCount;
+  std::set<llvm::DomTreeNodeBase<DTNode> *> visited;
+  std::queue<llvm::DomTreeNodeBase<DTNode> *> bfs;
+  auto nodes = domInfo->getRootNodes();
+  // bfs.push(domInfo->getRootNode());
+
+  for(llvm::DomTreeNodeBase<DTNode> * node : nodes) {
+    assert(node);
+    llvm::errs() << "root node: |" << node << "|\n";
+     this->simplifyDomNode(knownValues, node);
+
+  }
+
+
+  // while(!bfs.empty()) {
+  //   llvm::DomTreeNodeBase<DTNode> *cur = bfs.front();
+  //   bfs.pop();
+  // //   assert(visited.count(cur) == 0);
+  //   if (visited.count(cur)) {
+  //     llvm::errs() << "revisiting: " << cur << "\n";
+  //     continue;
+  //   }
+  //   visited.insert(cur);
+    // this->simplifyDomNode(knownValues, cur);
+  //   for (llvm::DomTreeNodeBase<DTNode> *succ : cur->children() ) {
+  //     bfs.push(succ);
+  //   }
+  // }
+  // this->simplifyDomNode(knownValues, domInfo->getRootNode());
+  
   // llvm::errs() << "function running CSE on:\n===\n";
   // this->getOperation()->print(llvm::errs());
   // llvm::errs() << "\n===\n";

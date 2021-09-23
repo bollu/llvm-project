@@ -253,10 +253,12 @@ class DominanceInfoBase {
 public:
     using DTBaseT = llvm::DominatorTreeBase<DTNode, IsPostDom>;
 protected:
-  DTBaseT *tree = nullptr;
+  // DTBaseT *tree = nullptr;
+  // std::set<DTNode *> DAGRoots;
   DenseMap<Block *, std::pair<DTNode *, DTNode *>> Block2EntryExit;
   DenseMap<Operation *, DTNode *> Op2Node;
   DenseMap<Region *, std::pair<DTNode *, DTNode *>> R2EntryExit;
+  DenseMap<Region *, std::pair<DT*, DTBaseT*>> Region2Tree; // map every region to the domtree it belongs to.
 
   // DTNode *toplevelEntry = nullptr; // TODO: maybe unused
 public:
@@ -280,15 +282,29 @@ public:
 
   /// Return true if there is dominanceInfo for the given region.
   bool hasDominanceInfo(Region *region) {
-    return this->tree != nullptr;
+    return this->Region2Tree.count(region);
     // return dominanceInfos.count(region) != 0;
   }
 
   bool hasSSADominance(Operation *op, unsigned index);
   bool hasSSADominance(Region &r);
 
-  llvm::DomTreeNodeBase<DTNode> *getRootNode() {
-    return this->tree->getRootNode();
+  // llvm::DomTreeNodeBase<DTNode> *getRootNode() {
+  //   return nullptr;
+  //   // return this->tree->getRootNode();
+  // }
+
+  std::set<llvm::DomTreeNodeBase<DTNode>*> getRootNodes() {
+    std::set<llvm::DomTreeNodeBase<DTNode>*> out;
+    for(auto it : this->Region2Tree) {
+      out.insert(it.second.second->getRootNode());
+      // assert(this->tree->getNode(node));
+      // out.insert(this->tree->getNode(node));
+    }
+    // is this redundant?
+    // assert(this->tree->getRootNode());
+    // out.insert(this->tree->getRootNode());
+    return out;
   }
 
   /// Get the root dominance node of the given region.
@@ -296,7 +312,10 @@ public:
     auto it = this->R2EntryExit.find(region);
     assert(it != this->R2EntryExit.end());
     DTNode *node = it->second.first;
-    return this->tree->getNode(node);
+    // Associate to each region the tree it belongs to.
+    assert(false && "unimplemented");
+    // return this->tree->getNode(node);
+    // ass
     // assert(false && "unimplemented");
     // return nullptr;
     // assert(dominanceInfos.count(region) != 0);
@@ -320,6 +339,7 @@ protected:
 
 
   bool isReachableFromParentRegion(Block *a) const;
+
 
   /// A mapping of regions to their base dominator tree.
   // DenseMap<Region *, std::unique_ptr<DTBaseT>> dominanceInfos;

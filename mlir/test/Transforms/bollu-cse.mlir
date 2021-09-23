@@ -144,20 +144,35 @@ func @down_propagate() -> i32 {
 
 /// Check that operation definitions are NOT propagated up the dominance tree.
 // CHECK-LABEL: @up_propagate_for
-// func @up_propagate_for() -> i32 {
-//   // CHECK: affine.for {{.*}} = 0 to 4 {
-//   affine.for %i = 0 to 4 {
-//     // CHECK-NEXT: %c1_i32_0 = constant 1 : i32
-//     // CHECK-NEXT: "foo"(%c1_i32_0) : (i32) -> ()
-//     %0 = constant 1 : i32
-//     "foo"(%0) : (i32) -> ()
-//   }
-// 
-//   // CHECK: %c1_i32 = constant 1 : i32
-//   // CHECK-NEXT: return %c1_i32 : i32
-//   %1 = constant 1 : i32
-//   return %1 : i32
-// }
+func @up_propagate_for() -> i32 {
+  // CHECK: affine.for {{.*}} = 0 to 4 {
+  affine.for %i = 0 to 4 {
+    // CHECK-NEXT: %c1_i32_0 = constant 1 : i32
+    // CHECK-NEXT: "foo"(%c1_i32_0) : (i32) -> ()
+    %0 = constant 1 : i32
+    "foo"(%0) : (i32) -> ()
+  }
+
+  // CHECK: %c1_i32 = constant 1 : i32
+  // CHECK-NEXT: return %c1_i32 : i32
+  %1 = constant 1 : i32
+  return %1 : i32
+}
+
+func @region_propagate_region() -> i32 {
+  scf.execute_region {
+    %c1 = constant 1 : i32
+    scf.yield
+  }
+
+  %c1_2 = constant 1 : i32
+
+  scf.execute_region {
+    %c1_3 = constant 1 : i32
+    scf.yield
+  }
+  return %c1_2 : i32
+}
 
 // CHECK-LABEL: func @up_propagate
 // func @up_propagate() -> i32 {
