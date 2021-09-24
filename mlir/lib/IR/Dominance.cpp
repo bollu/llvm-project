@@ -174,7 +174,11 @@ void processRegionDom(
     DT *dt, DenseMap<Region *, std::pair<DTNode *, DTNode *>> &R2EntryExit,
     DenseMap<mlir::Block *, std::pair<DTNode *, DTNode *>> &Block2EntryExit,
     DenseMap<Operation *, DTNode *> &Op2Dominator, DTNode *ParentOpEntry,
-    DTNode *ParentOpExit, DenseMap<Region *, std::pair<DT*,  typename DominanceInfoBase<IsPostDom>::DTBaseT *> > &Region2Tree, mlir::Region *R) {
+    DTNode *ParentOpExit, 
+    Region *root, 
+    DenseMap<Region *, Region *> Region2Root,
+    DenseMap<Region *, std::pair<DT*,  typename DominanceInfoBase<IsPostDom>::DTBaseT *> > &Region2Tree,
+    mlir::Region *R) {
 
   if (R->getBlocks().size() == 0) {
     return;
@@ -199,6 +203,8 @@ void processRegionDom(
      R->getParentOp()->mightHaveTrait<OpTrait::IsIsolatedFromAbove>()) {
     // DAGRoots.insert(RegionEntry);
     dt = new DT();
+    dt->entry = RegionEntry;
+    Region2Root[R] = R;
     Region2Tree[R] = {dt, nullptr}; // as a marker for a domtree that needs to be recalculated.
     llvm::errs() << "\n===\nadded DAG root: ";
     llvm::errs() << *R->getParentOp();
@@ -206,6 +212,7 @@ void processRegionDom(
     getchar();
 
   } else {
+    Region2Root[R] = root;
     ParentOpEntry->addSuccessor(RegionEntry);
   }
 
@@ -221,7 +228,7 @@ void processRegionDom(
         for (int i = 0; i < numRegions; i++) {
             Region &R = Op.getRegion(i);
             processRegionDom<IsPostDom>(dt, R2EntryExit, Block2EntryExit, Op2Dominator,
-                             OpEntry, OpExit, Region2Tree, &R);
+                             OpEntry, OpExit, &R, Region2Root, Region2Tree, &R);
         }
       } else {
         OpEntry->addSuccessor(OpExit);
@@ -276,7 +283,7 @@ void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
   for (int i = 0; i < op->getNumRegions(); ++i) {
     Region &r = op->getRegion(i);
     processRegionDom<IsPostDom>(dt, this->R2EntryExit, this->Block2EntryExit,
-                     this->Op2Node, toplevelEntry, toplevelExit, this->Region2Tree, &r);
+                     this->Op2Node, toplevelEntry, toplevelExit, &r, this->Region2Root, this->Region2Tree, &r);
   }
 
   if (DEBUG) {
@@ -301,27 +308,35 @@ void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
     llvm::WriteGraph(O, dt, /*shortNames=*/ false, op->getName().getStringRef());
   }
 
+  llvm::errs() << "done with recursion!\n";
+  getchar();
+
   for(auto it : Region2Tree) {
     it.second.second = new DTBaseT();
+    llvm::errs() << "asking recalculate!\n";
+    this->R2EntryExit[it.first].first->print(llvm::errs());
     it.second.second->recalculate(*it.second.first);
   }
 
+  llvm::errs() << "built all domtrees!\n";
+  getchar();
+
   // this->tree = new DTBaseT(); // std::make_unique<DTBaseT>();
   // tree->recalculate(*dt);
-  if (DEBUG) {
+  // if (DEBUG) {
 
-    llvm::dbgs() << "\nRECALCULATED tree: |" << "?????" << "|\n";
+  //   llvm::dbgs() << "\nRECALCULATED tree: |" << "?????" << "|\n";
 
-    for (int i = 0; i < dt->Nodes.size(); ++i) {
-      for (int j = 0; j < dt->Nodes.size(); ++j) {
-        llvm::dbgs() << "properlyDominates(" << dt->Nodes[i]->DebugIndex << " "
-                     << dt->Nodes[j]->DebugIndex << ", isPostDom:" << IsPostDom
-                     << ") = " << "????" // tree->dominates(dt->Nodes[i], dt->Nodes[j])
-                     << "\n";
-      }
-    }
-    getchar();
-  }
+  //   for (int i = 0; i < dt->Nodes.size(); ++i) {
+  //     for (int j = 0; j < dt->Nodes.size(); ++j) {
+  //       llvm::dbgs() << "properlyDominates(" << dt->Nodes[i]->DebugIndex << " "
+  //                    << dt->Nodes[j]->DebugIndex << ", isPostDom:" << IsPostDom
+  //                    << ") = " << "????" // tree->dominates(dt->Nodes[i], dt->Nodes[j])
+  //                    << "\n";
+  //     }
+  //   }
+  //   getchar();
+  // }
 }
 
 /// Walks up the list of containers of the given block and calls the

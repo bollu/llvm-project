@@ -259,6 +259,7 @@ protected:
   DenseMap<Operation *, DTNode *> Op2Node;
   DenseMap<Region *, std::pair<DTNode *, DTNode *>> R2EntryExit;
   DenseMap<Region *, std::pair<DT*, DTBaseT*>> Region2Tree; // map every region to the domtree it belongs to.
+  DenseMap<Region *, Region *> Region2Root; // map every region to the root region which owns it.
 
   // DTNode *toplevelEntry = nullptr; // TODO: maybe unused
 public:
