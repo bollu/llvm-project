@@ -174,60 +174,60 @@ func @region_propagate_region() -> i32 {
   return %c1_2 : i32
 }
 
-// CHECK-LABEL: func @up_propagate
+// xxCHECK-LABELxx: func @up_propagate
 // func @up_propagate() -> i32 {
-//   // CHECK-NEXT:  %c0_i32 = constant 0 : i32
+//   // xxCHECK-NEXTxx:  %c0_i32 = constant 0 : i32
 //   %0 = constant 0 : i32
 // 
-//   // CHECK-NEXT: %true = constant true
+//   // xxCHECK-NEXTxx: %true = constant true
 //   %cond = constant true
 // 
-//   // CHECK-NEXT: cond_br %true, ^bb1, ^bb2(%c0_i32 : i32)
+//   // xxCHECK-NEXTxx: cond_br %true, ^bb1, ^bb2(%c0_i32 : i32)
 //   cond_br %cond, ^bb1, ^bb2(%0 : i32)
 // 
-// ^bb1: // CHECK: ^bb1:
-//   // CHECK-NEXT: %c1_i32 = constant 1 : i32
+// ^bb1: // xxCHECKxx: ^bb1:
+//   // xxCHECK-NEXTxx: %c1_i32 = constant 1 : i32
 //   %1 = constant 1 : i32
 // 
-//   // CHECK-NEXT: br ^bb2(%c1_i32 : i32)
+//   // xxCHECK-NEXTxx: br ^bb2(%c1_i32 : i32)
 //   br ^bb2(%1 : i32)
 // 
-// ^bb2(%arg : i32): // CHECK: ^bb2
-//   // CHECK-NEXT: %c1_i32_0 = constant 1 : i32
+// ^bb2(%arg : i32): // xxCHECKxx: ^bb2
+//   // xxCHECK-NEXTxx: %c1_i32_0 = constant 1 : i32
 //   %2 = constant 1 : i32
 // 
-//   // CHECK-NEXT: %1 = addi %0, %c1_i32_0 : i32
+//   // xxCHECK-NEXTxx: %1 = addi %0, %c1_i32_0 : i32
 //   %add = addi %arg, %2 : i32
 // 
-//   // CHECK-NEXT: return %1 : i32
+//   // xxCHECK-NEXTxx: return %1 : i32
 //   return %add : i32
 // }
 
 /// The same test as above except that we are testing on a cfg embedded within
 /// an operation region.
-// CHECK-LABEL: func @up_propagate_region
+// xxCHECK-LABELxx: func @up_propagate_region
 // func @up_propagate_region() -> i32 {
-//   // CHECK-NEXT: %0 = "foo.region"
+//   // xxCHECK-NEXTxx: %0 = "foo.region"
 //   %0 = "foo.region"() ({
-//     // CHECK-NEXT:  %c0_i32 = constant 0 : i32
-//     // CHECK-NEXT: %true = constant true
-//     // CHECK-NEXT: cond_br
+//     // xxCHECK-NEXTxx:  %c0_i32 = constant 0 : i32
+//     // xxCHECK-NEXTxx: %true = constant true
+//     // xxCHECK-NEXTxx: cond_br
 // 
 //     %1 = constant 0 : i32
 //     %true = constant true
 //     cond_br %true, ^bb1, ^bb2(%1 : i32)
 // 
-//   ^bb1: // CHECK: ^bb1:
-//     // CHECK-NEXT: %c1_i32 = constant 1 : i32
-//     // CHECK-NEXT: br
+//   ^bb1: // xxCHECKxx: ^bb1:
+//     // xxCHECK-NEXTxx: %c1_i32 = constant 1 : i32
+//     // xxCHECK-NEXTxx: br
 // 
 //     %c1_i32 = constant 1 : i32
 //     br ^bb2(%c1_i32 : i32)
 // 
-//   ^bb2(%arg : i32): // CHECK: ^bb2(%1: i32):
-//     // CHECK-NEXT: %c1_i32_0 = constant 1 : i32
-//     // CHECK-NEXT: %2 = addi %1, %c1_i32_0 : i32
-//     // CHECK-NEXT: "foo.yield"(%2) : (i32) -> ()
+//   ^bb2(%arg : i32): // xxCHECKxx: ^bb2(%1: i32):
+//     // xxCHECK-NEXTxx: %c1_i32_0 = constant 1 : i32
+//     // xxCHECK-NEXTxx: %2 = addi %1, %c1_i32_0 : i32
+//     // xxCHECK-NEXTxx: "foo.yield"(%2) : (i32) -> ()
 // 
 //     %c1_i32_0 = constant 1 : i32
 //     %2 = addi %arg, %c1_i32_0 : i32
@@ -238,21 +238,21 @@ func @region_propagate_region() -> i32 {
 
 /// This test checks that nested regions that are isolated from above are
 /// properly handled.
-// CHECK-LABEL: @nested_isolated
+// xxCHECK-LABELxx: @nested_isolated
 // func @nested_isolated() -> i32 {
-//   // CHECK-NEXT: constant 1
+//   // xxCHECK-NEXTxx: constant 1
 //   %0 = constant 1 : i32
 // 
-//   // CHECK-NEXT: @nested_func
+//   // xxCHECK-NEXTxx: @nested_func
 //   builtin.func @nested_func() {
-//     // CHECK-NEXT: constant 1
+//     // xxCHECK-NEXTxx: constant 1
 //     %foo = constant 1 : i32
 //     "foo.yield"(%foo) : (i32) -> ()
 //   }
 // 
-//   // CHECK: "foo.region"
+//   // xxCHECKxx: "foo.region"
 //   "foo.region"() ({
-//     // CHECK-NEXT: constant 1
+//     // xxCHECK-NEXTxx: constant 1
 //     %foo = constant 1 : i32
 //     "foo.yield"(%foo) : (i32) -> ()
 //   }) : () -> ()
@@ -268,7 +268,7 @@ func @region_propagate_region() -> i32 {
 // func @use_before_def() {
 //   // xCHECK-NEXTx: test.graph_region
 //   test.graph_region {
-//     // CHECK-NEXT: addi %c1_i32, %c1_i32_0
+//     // xxCHECK-NEXTxx: addi %c1_i32, %c1_i32_0
 //     %0 = addi %1, %2 : i32
 // 
 //     // xCHECK-NEXTx: constant 1
