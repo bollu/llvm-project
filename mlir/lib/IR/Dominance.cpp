@@ -74,6 +74,11 @@ void DT::debug_print(llvm::raw_ostream &os) const {
 
 int DTNode::Count = 0;
 
+
+bool isIsolatedFromBelow(Operation *op) {
+  return op->getName().getStringRef() == "affine.for";
+}
+
 void DTNode::print(llvm::raw_ostream &os) const {
   switch (this->kind) {
   case Kind::DTBlock:
@@ -235,9 +240,11 @@ void processRegionDom(
       } else {
         OpEntry->addSuccessor(OpExit);
       }
-      // current final dominating thing is OpExit
-      Block2EntryExit[&B].second = OpExit;
 
+      if(!isIsolatedFromBelow(&Op)) {
+        // current final dominating thing is OpExit
+        Block2EntryExit[&B].second = OpExit;
+      }
 
       // return like op. exit to region exit.
       if (Op.hasTrait<OpTrait::IsTerminator>() &&
