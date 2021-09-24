@@ -199,7 +199,8 @@ void processRegionDom(
   R2EntryExit[R] = {RegionEntry, ParentOpExit};
 
   // Hack : make dominance lexically scoped for entry.
-  if (ParentOpEntry->kind == DTNode::Kind::DTToplevelEntry ||
+  if (root == R ||
+     ParentOpEntry->kind == DTNode::Kind::DTToplevelEntry ||
      R->getParentOp()->mightHaveTrait<OpTrait::IsIsolatedFromAbove>()) {
     // DAGRoots.insert(RegionEntry);
     dt = new DT();
@@ -209,7 +210,7 @@ void processRegionDom(
     llvm::errs() << "\n===\nadded DAG root: ";
     llvm::errs() << *R->getParentOp();
     llvm::errs() << "\n===\n";
-    getchar();
+    // getchar();
 
   } else {
     ParentOpEntry->addSuccessor(RegionEntry);
@@ -309,18 +310,38 @@ void DominanceInfoBase<IsPostDom>::recalculate(Operation *op) {
     llvm::WriteGraph(O, dt, /*shortNames=*/ false, op->getName().getStringRef());
   }
 
-  llvm::errs() << "done with recursion!\n";
-  getchar();
+  // llvm::errs() << "done with recursion!\n";
+  // getchar();
 
-  for(auto it : Region2Tree) {
+  for(auto &it : Region2Tree) {
     it.second.second = new DTBaseT();
     llvm::errs() << "asking recalculate!\n";
     this->R2EntryExit[it.first].first->print(llvm::errs());
     it.second.second->recalculate(*it.second.first);
   }
 
-  llvm::errs() << "built all domtrees!\n";
-  getchar();
+  // llvm::errs() << "built all domtrees!\n";
+  // llvm::errs() << "built all domtrees!\n";
+  // llvm::errs() << "built all domtrees!\n";
+  // llvm::errs() << "built all domtrees!\n";
+  // llvm::errs() << "built all domtrees!\n";
+  // llvm::errs() << "built all domtrees!\n";
+  // llvm::errs() << "built all domtrees!\n";
+  // llvm::errs() << "built all domtrees!\n";
+  // llvm::errs() << "built all domtrees!\n";
+  // llvm::errs() << "built all domtrees!\n";
+  // llvm::errs() << "built all domtrees!\n";
+  // llvm::errs() << "built all domtrees!\n";
+  // llvm::errs() << "built all domtrees!\n";
+  // llvm::errs() << "built all domtrees!\n";
+  // llvm::errs() << "built all domtrees!\n";
+  // llvm::errs() << "built all domtrees!\n";
+  // llvm::errs() << "built all domtrees!\n";
+  // llvm::errs() << "built all domtrees!\n";
+  // llvm::errs() << "built all domtrees!\n";
+  // llvm::errs() << "built all domtrees!\n";
+  // llvm::errs() << "built all domtrees!\n";
+  // getchar();
 
   // this->tree = new DTBaseT(); // std::make_unique<DTBaseT>();
   // tree->recalculate(*dt);
@@ -479,6 +500,14 @@ bool DominanceInfoBase<IsPostDom>::isReachableFromEntry(Block *a) const {
 
       auto itTree = this->Region2Tree.find(itRoot->second);
       assert(itTree != this->Region2Tree.end()); 
+      assert(itTree->second.second);
+      // llvm::errs() << "finding tree node!\n";
+      // llvm::errs() << "found tree node!\n";
+      // if (!treeNode) {
+      //   // llvm::errs() << "unable to find tree node!"; 
+      //   // getchar();
+      //   return false;
+      // }
       return itTree->second.second->isReachableFromEntry(aNode);
       // return this->tree->isReachableFromEntry(aNode);
     } else {
@@ -574,14 +603,17 @@ bool DominanceInfo::properlyDominates(Operation *a, Operation *b) const {
 /// Return true if value A properly dominates operation B.
 bool DominanceInfo::properlyDominates(Value a, Operation *b) const {
   auto bRoot = this->Region2Root.find(b->getParentRegion());
-  if (bRoot == this->Region2Root.end()) { 
-    llvm::errs() << *b << "does not have a root?\n"; getchar();
-    return false;
-  }
+  assert(bRoot != this->Region2Root.end());
+  // if (bRoot == this->Region2Root.end()) { 
+  //   // llvm::errs() << *b << "does not have a root?\n"; getchar();
+  //   return false;
+  // }
   auto bTree = this->Region2Tree.find(bRoot->second); 
-  if(bTree == this->Region2Tree.end()) { 
-    llvm::errs() << *b << "does not have a tree?\n"; getchar();
-    return false; }
+  assert(bTree != this->Region2Tree.end());
+  // if(bTree == this->Region2Tree.end()) { 
+  //   // llvm::errs() << *b << "does not have a tree?\n"; getchar();
+  //   return false;
+  // }
 
   DTNode *bNode = [&]() {
     auto itb = this->Op2Node.find(b);

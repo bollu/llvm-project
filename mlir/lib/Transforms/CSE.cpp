@@ -245,7 +245,7 @@ void CSE::simplifyDomNode(ScopedMapTy &knownValues, llvm::DomTreeNodeBase<DTNode
     llvm::errs() << "visiting op exit\n";
     dtnode->getOp()->print(llvm::errs());
     llvm::errs() << "\n---\n";
-    getchar();
+    // getchar();
 
     this->simplifyOperation(knownValues, *it);
   }
