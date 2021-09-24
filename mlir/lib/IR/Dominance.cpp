@@ -176,7 +176,7 @@ void processRegionDom(
     DenseMap<Operation *, DTNode *> &Op2Dominator, DTNode *ParentOpEntry,
     DTNode *ParentOpExit, 
     Region *root, 
-    DenseMap<Region *, Region *> Region2Root,
+    DenseMap<Region *, Region *> &Region2Root,
     DenseMap<Region *, std::pair<DT*,  typename DominanceInfoBase<IsPostDom>::DTBaseT *> > &Region2Tree,
     mlir::Region *R) {
 
@@ -205,7 +205,6 @@ void processRegionDom(
     dt = new DT();
     dt->entry = RegionEntry;
     root = R;
-    Region2Root[R] = root;
     Region2Tree[R] = {dt, nullptr}; // as a marker for a domtree that needs to be recalculated.
     llvm::errs() << "\n===\nadded DAG root: ";
     llvm::errs() << *R->getParentOp();
@@ -213,9 +212,10 @@ void processRegionDom(
     getchar();
 
   } else {
-    Region2Root[R] = root;
     ParentOpEntry->addSuccessor(RegionEntry);
   }
+
+  Region2Root[R] = root;
 
   // Step 1: build data structures
   for (mlir::Block &B : *R) {
@@ -416,10 +416,15 @@ template <bool IsPostDom>
 DominanceInfoNode *DominanceInfoBase<IsPostDom>::getNode(Block *a) {
   auto it = this->Block2EntryExit.find(a);
   assert(it != this->Block2EntryExit.end());
-  // if post dom return exit else entry
-  assert(false && "unimplemented");
 
-  // return tree->getNode(IsPostDom ? it->second.second : it->second.first);
+  auto aRegion = this->Region2Root.find(a->getParent());
+  assert(aRegion != this->Region2Root.end());
+
+  auto aTree = this->Region2Tree.find(aRegion->second);
+  assert(aTree != this->Region2Tree.end());
+  // if post dom return exit else entry
+  return aTree->second.second->getNode(IsPostDom ? it->second.second : it->second.first);
+
 }
 
 /// Return true if the specified block A properly dominates block B.
@@ -468,12 +473,11 @@ bool DominanceInfoBase<IsPostDom>::isReachableFromEntry(Block *a) const {
 
     if (aNode) {
       // assert(false && "unimplemented");
-      auto it = this->Region2Root.find(a->getParent());
-      if (it == Region2Root.end()) { return false; }
+      auto itRoot = this->Region2Root.find(a->getParent());
+      // if (itRoot == Region2Root.end()) { return false; }
+      assert(itRoot != this->Region2Root.end());
 
-      assert(it != this->Region2Root.end());
-      Region *root = it->second;
-      auto itTree = this->Region2Tree.find(root);
+      auto itTree = this->Region2Tree.find(itRoot->second);
       assert(itTree != this->Region2Tree.end()); 
       return itTree->second.second->isReachableFromEntry(aNode);
       // return this->tree->isReachableFromEntry(aNode);
@@ -570,9 +574,14 @@ bool DominanceInfo::properlyDominates(Operation *a, Operation *b) const {
 /// Return true if value A properly dominates operation B.
 bool DominanceInfo::properlyDominates(Value a, Operation *b) const {
   auto bRoot = this->Region2Root.find(b->getParentRegion());
-  if (bRoot == this->Region2Root.end()) { return false; }
+  if (bRoot == this->Region2Root.end()) { 
+    llvm::errs() << *b << "does not have a root?\n"; getchar();
+    return false;
+  }
   auto bTree = this->Region2Tree.find(bRoot->second); 
-  if(bTree == this->Region2Tree.end()) { return false; }
+  if(bTree == this->Region2Tree.end()) { 
+    llvm::errs() << *b << "does not have a tree?\n"; getchar();
+    return false; }
 
   DTNode *bNode = [&]() {
     auto itb = this->Op2Node.find(b);
@@ -585,7 +594,6 @@ bool DominanceInfo::properlyDominates(Value a, Operation *b) const {
   if (Operation *aOp = a.getDefiningOp()) {
     auto aRoot = this->Region2Root.find(aOp->getParentRegion());
     if (aRoot == this->Region2Root.end()) { return false; }
-
     if (aRoot->second != bRoot->second) { return false; }
 
     auto ita = this->Op2Node.find(aOp);
@@ -593,12 +601,7 @@ bool DominanceInfo::properlyDominates(Value a, Operation *b) const {
 
     DTNode *aNode = ita->second;
     assert(aNode->kind == DTNode::Kind::DTOpExit);
-    if (aNode->getParent() != bNode->getParent()) { return false; }
-    else { 
-      return bTree->second.second->properlyDominates(aNode, bNode);
-      // return tree->properlyDominates(aNode, bNode);
-
-    }   
+    return bTree->second.second->properlyDominates(aNode, bNode);
   } else {
     assert(a.isa<BlockArgument>() && "value must be op or block argument");
     BlockArgument arg = a.cast<BlockArgument>();
@@ -606,17 +609,13 @@ bool DominanceInfo::properlyDominates(Value a, Operation *b) const {
     if (aRoot == this->Region2Root.end()) { return false; }
     if (aRoot->second != bRoot->second) { return false; }
 
-
     auto ita = this->Block2EntryExit.find(arg.getOwner());
     if (ita == this->Block2EntryExit.end()) {
       return false;
     }
     // argument block properly dominates operation if operation is in the block.
     DTNode *aNode = ita->second.first;
-  if (aNode->getParent() != bNode->getParent()) { return false; }
-    else { assert(false); }
-
-    // return tree->properlyDominates(aNode, bNode);
+    return bTree->second.second->properlyDominates(aNode, bNode);
   }
 }
 
