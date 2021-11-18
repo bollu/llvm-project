@@ -59,26 +59,26 @@ PreservedAnalyses AlwaysInlinerPass::run(Module &M,
 
     if (!F.isDeclaration() && F.hasFnAttribute(Attribute::AlwaysInline) &&
         isInlineViable(F).isSuccess()) {
-      llvm::errs() << "always-inline |" << F.getName() << "| " << __LINE__
-                   << "\n";
+      // llvm::errs() << "always-inline |" << F.getName() << "| " << __LINE__
+      //             << "\n";
       Calls.clear();
 
       for (User *U : F.users()) {
-        llvm::errs() << "found user: ";
-        U->dump();
-        llvm::errs() << "\tfor function: |" << F.getName() << "|\n";
-        llvm::errs() << "\t user is bitcast?  " << isa<BitCastInst>(U) << "\n";
-        llvm::errs() << "\t user is bitcastop?  " << isa<BitCastOperator>(U)
-                     << "\n";
-        llvm::errs() << "\tuser->name: " << U->getName() << "\n";
-        llvm::errs() << "\tuser->name: " << U->getNameOrAsOperand() << "\n";  
+        // llvm::errs() << "found user: ";
+        // U->dump();
+        // llvm::errs() << "\tfor function: |" << F.getName() << "|\n";
+        // llvm::errs() << "\t user is bitcast?  " << isa<BitCastInst>(U) << "\n";
+        // llvm::errs() << "\t user is bitcastop?  " << isa<BitCastOperator>(U)
+        //              << "\n";
+        // llvm::errs() << "\tuser->name: " << U->getName() << "\n";
+        // llvm::errs() << "\tuser->name: " << U->getNameOrAsOperand() << "\n";  
         if (BitCastOperator *Cast = dyn_cast<BitCastOperator>(U)) {
             // bitcast <op0:fn> to <newtype>
             // find users of bitcast and look for a call.
-            llvm::errs() << "Cast->numUses: " << Cast->getNumUses() << "\n";
+            // llvm::errs() << "Cast->numUses: " << Cast->getNumUses() << "\n";
             // assert(Cast->getNumUses() == 1 && "bitcast OPERATOR cannot have more than 1 use");
             for (auto FnBitCastUser : Cast->users()) {
-                llvm::errs() << "\tuser of fn is bitcast; bitcast->user: " ; FnBitCastUser->dump(); llvm::errs() << "\n";
+                // llvm::errs() << "\tuser of fn is bitcast; bitcast->user: " ; FnBitCastUser->dump(); llvm::errs() << "\n";
                 // vv not always true, can be another cast or some shit. OK, w/e. We only care
                 // about the calls.
                 // assert(llvm::isa<CallBase>(FnBitCastUser));
@@ -91,30 +91,30 @@ PreservedAnalyses AlwaysInlinerPass::run(Module &M,
         } else if (CastInst *Cast = dyn_cast<CastInst>(U)) {
           if (auto *CB = dyn_cast<CallBase>(Cast->getOperand(0))) {
             if (CB->getCalledFunction() == &F) {
-              llvm::errs() << "\t\t ### Inserted.\n";
-              CB->dump();
+              // llvm::errs() << "\t\t ### Inserted.\n";
+              // CB->dump();
               Calls.insert(CB);
             }
           }
         }
         else if (auto *CB = dyn_cast<CallBase>(U)) {
           if (CB->getCalledFunction() == &F) {
-            llvm::errs() << "\t\t ### Inserted.\n";
-            llvm::errs() << "always-inline call |";
-            CB->dump();
-            llvm::errs() << " "
-                         << "| " << __LINE__ << "\n";
-            Calls.insert(CB);
+            // llvm::errs() << "\t\t ### Inserted.\n";
+            // llvm::errs() << "always-inline call |";
+            // CB->dump();
+            // llvm::errs() << " "
+            //              << "| " << __LINE__ << "\n";
+            // Calls.insert(CB);
           }
         } else {
-            llvm::errs() << "\tunknown call site!";
+            // llvm::errs() << "\tunknown call site!";
         }
       } // end loop over users.
 
       for (CallBase *CB : Calls) {
-        llvm::errs() << "always-inline call |";
-        CB->dump();
-        llvm::errs() << "| " << __LINE__ << "\n";
+        // llvm::errs() << "always-inline call |";
+        // CB->dump();
+        // llvm::errs() << "| " << __LINE__ << "\n";
         Function *Caller = CB->getCaller();
         OptimizationRemarkEmitter ORE(Caller);
         auto OIC = shouldInline(
