@@ -693,6 +693,12 @@ def LLVM_UnreachableOp : LLVM_TerminatorOp<"unreachable", []> {
   let printer = [{ p << getOperationName(); }];
 }
 
+def LLVM_TrapOp : LLVM_TerminatorOp<"trap", []> {
+  string llvmBuilder = [{ builder.CreateUnreachable(); }];
+  let parser = [{ return success(); }];
+  let printer = [{ p << getOperationName(); }];
+}
+
 def LLVM_SwitchOp : LLVM_TerminatorOp<"switch",
     [AttrSizedOperandSegments, DeclareOpInterfaceMethods<BranchOpInterface>,
      NoSideEffect]> {

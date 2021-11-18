@@ -71,7 +71,7 @@ PreservedAnalyses AlwaysInlinerPass::run(Module &M,
         llvm::errs() << "\t user is bitcastop?  " << isa<BitCastOperator>(U)
                      << "\n";
         llvm::errs() << "\tuser->name: " << U->getName() << "\n";
-        llvm::errs() << "\tuser->name: " << U->getNameOrAsOperand() << "\n";
+        llvm::errs() << "\tuser->name: " << U->getNameOrAsOperand() << "\n";  
         if (BitCastOperator *Cast = dyn_cast<BitCastOperator>(U)) {
             // bitcast <op0:fn> to <newtype>
             // find users of bitcast and look for a call.
