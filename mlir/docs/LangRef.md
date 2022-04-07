@@ -745,7 +745,7 @@ primitive integer and floating-point types, function types, and more.
 Syntax:
 
 ```
-attribute-entry ::= (bare-id | string-literal) `=` attribute-value
+attribute-entry ::= (bare-id | string-literal) [`=` attribute-value]?
 attribute-value ::= attribute-alias | dialect-attribute | builtin-attribute
 ```
 
@@ -776,7 +776,8 @@ based on whether their dictionary key has a dialect prefix:
 
 Note that attribute values are allowed to themselves be dictionary attributes,
 but only the top-level dictionary attribute attached to the operation is subject
-to the classification above.
+to the classification above. The absence of an attribute value maps the attribute
+entry to the *unit* attribute value.
 
 ### Attribute Value Aliases
 
