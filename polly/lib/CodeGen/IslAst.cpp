@@ -59,10 +59,12 @@ using namespace polly;
 
 using IslAstUserPayload = IslAstInfo::IslAstUserPayload;
 
-static cl::opt<bool>
-    PollyParallel("polly-parallel",
-                  cl::desc("Generate thread parallel code (isl codegen only)"),
-                  cl::init(false), cl::ZeroOrMore, cl::cat(PollyCategory));
+bool PollyParallel;
+static cl::opt<bool, true>
+    XPollyParallel("polly-parallel",
+                   cl::desc("Generate thread parallel code (isl codegen only)"),
+                   cl::ZeroOrMore, cl::cat(PollyCategory),
+                   cl::location(PollyParallel), cl::init(false));
 
 static cl::opt<bool> PrintAccesses("polly-ast-print-accesses",
                                    cl::desc("Print memory access functions"),

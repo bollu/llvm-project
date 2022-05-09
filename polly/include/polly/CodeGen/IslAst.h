@@ -26,6 +26,9 @@
 #include "llvm/IR/PassManager.h"
 #include "isl/ctx.h"
 
+/// Command line switch whether to model read-only accesses.
+extern bool PollyParallel;
+
 namespace polly {
 using llvm::SmallPtrSet;
 

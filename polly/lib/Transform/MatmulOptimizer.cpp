@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "polly/MatmulOptimizer.h"
+#include "polly/CodeGen/IslAst.h"
 #include "polly/DependenceInfo.h"
 #include "polly/Options.h"
 #include "polly/ScheduleTreeTransform.h"
@@ -1031,7 +1032,10 @@ polly::tryOptimizeMatMulPattern(isl::schedule_node Node,
                                 const llvm::TargetTransformInfo *TTI,
                                 const Dependences *D) {
   MatMulInfoTy MMI;
-  if (isMatrMultPattern(Node, D, MMI)) {
+  // FIXME: Polly's parallel scheduler and the matrix multiplication
+  // pattern match produce invalid code. Disable the matrix pattern
+  // entirely if `-polly-parallel` is used.
+  if (!PollyParallel && isMatrMultPattern(Node, D, MMI)) {
     LLVM_DEBUG(dbgs() << "The matrix multiplication pattern was detected\n");
     return optimizeMatMulPattern(Node, TTI, MMI);
   }
