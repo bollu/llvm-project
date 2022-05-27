@@ -671,7 +671,15 @@ Example:
 ### Dialect Types
 
 Similarly to operations, dialects may define custom extensions to the type
-system.
+system. Note that an opaque dialect item must be of the form
+`my-dialect<"string-payload">`. A pretty dialect type must be
+of the form `my-dialect.type-name<structured-payload>`. The `structured-payload`
+is, roughly speaking, made of sequences of `pretty-dialect-iterm-contents`,
+where a `pretty-dialect-item-contents` is a tree of **balanced parentheses**
+made up of `()`, `{}`, `[]`, and `<>`.
+
+Thus, a lax parsing strategy of for `pretty-dialect-item-body` is to parse
+a `<`, followed by consuming balanced parens of `<>`, `[]`, `{}`, and ending with a `>`.
 
 ```
 dialect-namespace ::= bare-id
@@ -693,31 +701,33 @@ dialect-type ::= '!' opaque-dialect-item
 dialect-type ::= '!' pretty-dialect-item
 ```
 
-Dialect types can be specified in a verbose form, e.g. like this:
+Some examples of legal and illegal `pretty-dialect-items` is given below:
 
-```mlir
-// LLVM type that wraps around llvm IR types.
-!llvm<"i32*">
-
-// Tensor flow string type.
-!tf.string
-
-// Complex type
-!foo<"something<abcd>">
-
-// Even more complex type
-!foo<"something<a%%123^^^>>>">
+```
+my-dialect.r<foo[]> -- Legal
+my-dialect.r<bar[baz<>]> -- Legal
+my-dialect.r<1 < 2> -- Illegal: imbalanced `<`
+my-dialect.r<illegal[> -- Illegal: imbalanced `[`
+my-dialect.r<illegal]> -- Illegal: imbalanced `]`
 ```
 
-Dialect types that are simple enough can use the pretty format, which is a
-lighter weight syntax that is equivalent to the above forms:
+Some examples of dialect types specified in verbose and pretty form
+are given below:
 
 ```mlir
-// Tensor flow string type.
-!tf.string
+// RUN: mlir-opt --allow-unregistered-dialect 
 
-// Complex type
-!foo.something<abcd>
+// Pretty and generic: simple type
+"foo.op" () : () -> !foo.i32 // pretty
+"foo.op" () : () -> !foo<"i32"> // generic
+
+// Pretty and generic: type with argument
+"foo.op" () : () -> !foo.bar<i32> // pretty
+"foo.op" () : () -> !foo<"bar<i32>"> // generic
+
+// Only generic: complex type
+!foo<"something<a%%123^^^>>>"> // generic
+// NO pretty form, because imbalanced.
 ```
 
 Sufficiently complex dialect types are required to use the verbose form for
